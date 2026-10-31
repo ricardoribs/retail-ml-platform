@@ -28,3 +28,8 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 /ml/demand_forecasting/notebooks/data_audit_report.txt
+
+# ==========================================
+# 4. Local IDE Settings
+# ==========================================
+.vscode/
