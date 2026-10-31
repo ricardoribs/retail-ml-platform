@@ -1,0 +1,30 @@
+bundle:
+  name: retail-ml-platform
+
+include:
+  - ingestion/bundle/*.yml
+
+variables:
+  catalog:
+    description: Unity Catalog catalog used by the project.
+    default: retail_analytics
+
+sync:
+  exclude:
+    - planejamento/
+    - pdfs/
+    - "checkpoint 2/"
+    - "*.docx"
+    - "**/.env"
+    - "**/__pycache__/"
+
+targets:
+  dev:
+    default: true
+    mode: development
+    workspace:
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
+  prod:
+    mode: production
+    workspace:
+      root_path: /Shared/.bundle/${bundle.name}/${bundle.target}

@@ -1,0 +1,246 @@
+# Complete Retail Analytics Pipeline: Bronze Ingestion + dbt Transformation + Forecast + Marina
+#
+# This unified job runs the entire data pipeline in 17 sequential stages:
+# 1. setup_bronze: validates the environment and configuration
+# 2. bronze_ingestion: Loads SQL Server data into the Bronze layer (Delta Lake)
+# 3. dbt_transformation: Transforms Bronze data through Staging, Intermediate, and Marts
+# 4. demand_forecast_train_evaluate: Evaluates baselines and regression models
+# 5. forecast_segment_backtest: Recursive evidence by demand profile
+# 6. forecast_series_model_selection: Validated champion model by product and location
+# 7. seasonality_ranking: Product seasonality ranking
+# 8. forecast_series_policy: Planning policy by product and location
+# 9. demand_forecast_generate: Generates the forecast and its publication status
+# 10. replenishment_planning_policy: Manual replenishment policy by series
+# 11. forecast_actionability_gate: Releases rankings only when the full forecast is approved
+# 12. location_forecast_growth: Growth ranking by store/POS
+# 13. cd_forecast_growth: Growth ranking by distribution center
+# 14. distribution_center_recommendation: Ranking of candidate regions for a new distribution center
+# 15. marina_document_indexer: Updates the technical chunks used by Marina
+# 16. marina_vector_index_sync: Synchronizes the search index after indexing
+#
+# Forecast stages (4-9) run only after dbt_transformation publishes updated
+# staging/intermediate/marts tables, which feed
+# int_monthly_product_location_demand and int_forecast_feature_matrix.
+# They run sequentially, not in parallel: location_forecast_growth (6) and
+# cd_forecast_growth (8) both MERGE into the same table
+# (agg_location_forecast_growth, with a different comparison_type each) —
+# parallel execution could cause a concurrent Delta write conflict.
+#
+# marina_document_indexer (10) runs only after all forecast outputs exist,
+# so Marina's knowledge base and visual dashboard reflect the latest data.
+#
+# Orchestration:
+# - Schedule: Daily at 8:00 AM São Paulo time
+# - reference_date: If empty, uses the São Paulo operational date; can be
+#   overridden with Run now for reruns and backfills
+# - Cutoff: Last day of the closed month before reference_date
+# - Snapshot: forecast_YYYY_MM; execution_id identifies only the attempt
+# - Idempotency: All tasks are safe to rerun
+# - Retries: 2 automatic attempts per task (minimum interval: 1 minute)
+# - Notifications: email on failure
+# - Isolation: max_concurrent_runs=1 prevents overlapping runs
+
+resources:
+  jobs:
+    bronze_ingestion:
+      name: retail_analytics_data_pipeline
+      parameters:
+        - name: config_path
+          default: ../config/tables_config.json
+        - name: table_name
+          default: all
+        - name: reference_date
+          default: ""
+        - name: execution_id
+          default: "{{job.run_id}}"
+      tags:
+        project: retail-analytics
+        checkpoint: cp5-modelagem-preditiva-e-delivery
+
+      schedule:
+        quartz_cron_expression: "0 0 8 * * ?"
+        timezone_id: America/Sao_Paulo
+        pause_status: UNPAUSED
+      max_concurrent_runs: 1
+      tasks:
+        - task_key: setup_bronze
+          max_retries: 2
+          min_retry_interval_millis: 60000
+          retry_on_timeout: true
+          notebook_task:
+            notebook_path: ../notebooks/00_setup_bronze.py
+
+        - task_key: bronze_ingestion
+          depends_on:
+            - task_key: setup_bronze
+          max_retries: 2
+          min_retry_interval_millis: 60000
+          retry_on_timeout: true
+          notebook_task:
+            notebook_path: ../notebooks/01_bronze_ingestion.py
+
+        - task_key: dbt_transformation
+          depends_on:
+            - task_key: bronze_ingestion
+          max_retries: 2
+          min_retry_interval_millis: 60000
+          retry_on_timeout: true
+          notebook_task:
+            notebook_path: ../../dbt/notebooks/dbt_runner.py
+          environment_key: default
+
+        - task_key: demand_forecast_train_evaluate
+          depends_on:
+            - task_key: dbt_transformation
+          max_retries: 2
+          min_retry_interval_millis: 60000
+          retry_on_timeout: true
+          notebook_task:
+            notebook_path: ../../ml/demand_forecasting/notebooks/02_train_evaluate_models.py
+          environment_key: forecast_ml
+
+        - task_key: forecast_segment_backtest
+          depends_on:
+            - task_key: demand_forecast_train_evaluate
+          max_retries: 2
+          min_retry_interval_millis: 60000
+          retry_on_timeout: true
+          notebook_task:
+            notebook_path: ../../ml/demand_forecasting/notebooks/16_segmented_baseline_backtest.py
+          environment_key: forecast_ml
+
+        - task_key: forecast_series_model_selection
+          depends_on:
+            - task_key: demand_forecast_train_evaluate
+          max_retries: 2
+          min_retry_interval_millis: 60000
+          retry_on_timeout: true
+          notebook_task:
+            notebook_path: ../../ml/demand_forecasting/notebooks/18_series_model_selection.py
+          environment_key: forecast_ml
+
+        - task_key: seasonality_ranking
+          depends_on:
+            - task_key: dbt_transformation
+          max_retries: 2
+          min_retry_interval_millis: 60000
+          retry_on_timeout: true
+          notebook_task:
+            notebook_path: ../../ml/demand_forecasting/notebooks/05_seasonality_ranking.py
+          environment_key: default
+
+        - task_key: forecast_series_policy
+          depends_on:
+            - task_key: seasonality_ranking
+          max_retries: 2
+          min_retry_interval_millis: 60000
+          retry_on_timeout: true
+          notebook_task:
+            notebook_path: ../../ml/demand_forecasting/notebooks/15_series_policy.py
+          environment_key: default
+
+        - task_key: demand_forecast_generate
+          depends_on:
+            - task_key: demand_forecast_train_evaluate
+            - task_key: forecast_segment_backtest
+            - task_key: forecast_series_model_selection
+            - task_key: forecast_series_policy
+          max_retries: 2
+          min_retry_interval_millis: 60000
+          retry_on_timeout: true
+          notebook_task:
+            notebook_path: ../../ml/demand_forecasting/notebooks/03_generate_forecast.py
+          environment_key: forecast_ml
+
+        - task_key: replenishment_planning_policy
+          depends_on:
+            - task_key: demand_forecast_generate
+          max_retries: 2
+          min_retry_interval_millis: 60000
+          retry_on_timeout: true
+          notebook_task:
+            notebook_path: ../../ml/demand_forecasting/notebooks/17_replenishment_planning_policy.py
+          environment_key: default
+
+        - task_key: location_aggregate_forecast
+          depends_on:
+            - task_key: demand_forecast_generate
+          max_retries: 2
+          min_retry_interval_millis: 60000
+          retry_on_timeout: true
+          notebook_task:
+            notebook_path: ../../ml/demand_forecasting/notebooks/20_generate_location_aggregate_forecast.py
+          environment_key: default
+
+        - task_key: forecast_actionability_gate
+          depends_on:
+            - task_key: location_aggregate_forecast
+          condition_task:
+            op: EQUAL_TO
+            left: "{{tasks.location_aggregate_forecast.values.has_actionable_aggregate_forecast}}"
+            right: "true"
+
+        - task_key: location_forecast_growth
+          depends_on:
+            - task_key: forecast_actionability_gate
+              outcome: "true"
+          max_retries: 2
+          min_retry_interval_millis: 60000
+          retry_on_timeout: true
+          notebook_task:
+            notebook_path: ../../ml/demand_forecasting/notebooks/04_location_forecast_growth.py
+          environment_key: default
+
+        - task_key: cd_forecast_growth
+          depends_on:
+            - task_key: location_forecast_growth
+          max_retries: 2
+          min_retry_interval_millis: 60000
+          retry_on_timeout: true
+          notebook_task:
+            notebook_path: ../../ml/demand_forecasting/notebooks/06_cd_forecast_growth.py
+          environment_key: default
+
+        - task_key: distribution_center_recommendation
+          depends_on:
+            - task_key: cd_forecast_growth
+          max_retries: 2
+          min_retry_interval_millis: 60000
+          retry_on_timeout: true
+          notebook_task:
+            notebook_path: ../../ml/demand_forecasting/notebooks/07_distribution_center_recommendation.py
+          environment_key: default
+
+        - task_key: marina_document_indexer
+          depends_on:
+            - task_key: distribution_center_recommendation
+          max_retries: 2
+          min_retry_interval_millis: 60000
+          retry_on_timeout: true
+          spark_python_task:
+            python_file: ../../apps/marina/src/indexer.py
+          environment_key: default
+
+        - task_key: marina_vector_index_sync
+          depends_on:
+            - task_key: marina_document_indexer
+          max_retries: 2
+          min_retry_interval_millis: 60000
+          retry_on_timeout: true
+          spark_python_task:
+            python_file: ../../apps/marina/src/vector_index_sync.py
+          environment_key: vector_search
+
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "2"
+        - environment_key: forecast_ml
+          spec:
+            # Spark ML on serverless compute requires environment version 4+.
+            environment_version: "4"
+        - environment_key: vector_search
+          spec:
+            environment_version: "2"
+            dependencies:
+              - databricks-ai-search==0.78

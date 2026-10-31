@@ -1,0 +1,10 @@
+command: ["python", "app.py"]
+env:
+  - name: DATABRICKS_WAREHOUSE_ID
+    valueFrom: sql_warehouse
+  - name: MARINA_VECTOR_INDEX
+    valueFrom: marina_vector_index
+  - name: MARINA_LLM_ENDPOINT
+    valueFrom: marina_llm_endpoint
+  - name: MARINA_EMBEDDING_ENDPOINT
+    valueFrom: marina_embedding_endpoint

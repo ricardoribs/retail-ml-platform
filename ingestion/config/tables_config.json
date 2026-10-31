@@ -1,0 +1,65 @@
+{
+  "general": {
+    "source_schema": "dbo",
+    "secret_scope": "retail-analytics-source",
+    "bronze_catalog": "retail_analytics",
+    "bronze_schema": "bronze",
+    "control_table": "retail_analytics.bronze.ingestion_control"
+  },
+  "tables": [
+    { "name": "attributes",               "load_type": "full",              "primary_key": ["id"] },
+    { "name": "brands",                   "load_type": "merge",             "primary_key": ["id"], "watermark_column": "updated_at" },
+    { "name": "categories",               "load_type": "merge",             "primary_key": ["id"], "watermark_column": "updated_at" },
+    { "name": "locations",                "load_type": "merge",             "primary_key": ["id"], "watermark_column": "updated_at" },
+    { "name": "suppliers",                "load_type": "merge",             "primary_key": ["id"], "watermark_column": "updated_at" },
+    { "name": "employees",                "load_type": "merge",             "primary_key": ["id"], "watermark_column": "updated_at" },
+    { "name": "customers",                "load_type": "merge",             "primary_key": ["id"], "watermark_column": "updated_at" },
+    { "name": "addresses",                "load_type": "full",              "primary_key": ["id"] },
+    { "name": "products",                 "load_type": "merge",             "primary_key": ["id"], "watermark_column": "updated_at" },
+    { "name": "product_variants",         "load_type": "merge",             "primary_key": ["id"], "watermark_column": "updated_at" },
+    { "name": "product_suppliers",        "load_type": "merge",             "primary_key": ["product_variant_id", "supplier_id"], "watermark_column": "updated_at" },
+    { "name": "variant_attribute_values", "load_type": "full",              "primary_key": ["product_variant_id", "attribute_id"] },
+    { "name": "stock_levels",             "load_type": "merge",             "primary_key": ["product_variant_id", "location_id"], "watermark_column": "updated_at" },
+    {
+      "name": "orders",
+      "load_type": "merge",
+      "primary_key": ["id"],
+      "watermark_column": "updated_at",
+      "partition_read": { "column": "id", "num_partitions": 8 }
+    },
+    {
+      "name": "order_items",
+      "load_type": "merge_insert_only",
+      "primary_key": ["id"],
+      "watermark_column": "id",
+      "partition_read": { "column": "id", "num_partitions": 16 }
+    },
+    {
+      "name": "payments",
+      "load_type": "merge",
+      "primary_key": ["id"],
+      "watermark_column": "updated_at",
+      "partition_read": { "column": "id", "num_partitions": 8 }
+    },
+    {
+      "name": "fiscal_invoices",
+      "load_type": "merge",
+      "primary_key": ["id"],
+      "watermark_column": "updated_at",
+      "partition_read": { "column": "id", "num_partitions": 8 }
+    },
+    { "name": "returns",                  "load_type": "merge",             "primary_key": ["id"], "watermark_column": "updated_at" },
+    { "name": "return_items",             "load_type": "merge_insert_only", "primary_key": ["id"], "watermark_column": "id" },
+    {
+      "name": "stock_movements",
+      "load_type": "merge_insert_only",
+      "primary_key": ["id"],
+      "watermark_column": "created_at",
+      "partition_read": { "column": "id", "num_partitions": 16 }
+    },
+    { "name": "purchase_orders",          "load_type": "merge",             "primary_key": ["id"], "watermark_column": "updated_at" },
+    { "name": "purchase_order_items",     "load_type": "merge_insert_only", "primary_key": ["id"], "watermark_column": "id" },
+    { "name": "goods_receipts",           "load_type": "merge_insert_only", "primary_key": ["id"], "watermark_column": "created_at" },
+    { "name": "goods_receipt_items",      "load_type": "merge_insert_only", "primary_key": ["id"], "watermark_column": "id" }
+  ]
+}

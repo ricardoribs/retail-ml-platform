@@ -1,0 +1,688 @@
+version: 2
+
+models:
+  - name: int_forecast_event_features
+    description: >
+      Monthly experimental matrix by SKU and location. Price and frequency are
+      calculated exclusively from events before the target month. Demand in the
+      current month is used only as the backtest label.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - demand_month
+              - product_variant_id
+              - location_id
+    columns:
+      - name: demand_month
+        tests: [not_null]
+      - name: product_variant_id
+        tests: [not_null]
+      - name: location_id
+        tests: [not_null]
+      - name: demand_qty
+        tests: [not_null]
+      - name: last_observed_unit_price_brl
+        description: Last price traded before the target month; null when no history is available.
+      - name: positive_months_last_3
+        description: Months with sales during the three prior months.
+      - name: sales_days_last_3
+        description: Days with sales during the three prior months.
+
+  - name: int_return_reason_classification
+    description: >
+      Classifies each return into one of three root causes using the
+      get_return_reason_class() macro: information_mismatch (incorrect
+      size/color or an item that does not match its description),
+      operational_failure (damage, defect, or shipping issue), or
+      consumer_behavior (changed mind or duplicate purchase). Unrecognized
+      free-text values (e.g., "Other", "—", "?", null) are classified as
+      unclassified.
+    columns:
+      - name: return_id
+        description: "Unique return identifier."
+        tests:
+          - unique
+          - not_null
+      - name: order_id
+        description: "Source order identifier."
+      - name: return_reason
+        description: "Original return reason in free text (unstandardized data with spelling variations)."
+      - name: return_reason_class
+        description: "Root-cause class assigned by the macro."
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['information_mismatch', 'operational_failure', 'consumer_behavior', 'unclassified']
+      - name: returned_at
+        description: "Date and time when the return record was created."
+
+  - name: int_payment_reconciliation
+    description: >
+      Reconciles payments by order. Grain: one row per order_id.
+      total_paid = sum of payments with status 'approved'.
+      total_refunded = sum of payments with status 'refunded'.
+      Payments with 'pending' and 'refused' statuses are excluded from both sums.
+    columns:
+      - name: order_id
+        description: "Reconciled order."
+        tests:
+          - unique
+          - not_null
+      - name: total_paid
+        description: "Sum of payments with approved status."
+      - name: total_refunded
+        description: "Sum of payments with refunded status."
+      - name: net_revenue
+        description: "total_paid - total_refunded."
+
+  - name: int_stock_alerts
+    description: >
+      Inventory replenishment alerts based on reorder_point, a field already
+      present in stg_stock_levels. Grain: one row per product_variant_id and
+      location_id. A variant/location is flagged with is_reorder_needed = true
+      when quantity_on_hand is less than or equal to reorder_point. Locations
+      without a defined reorder_point (null) are excluded because there is no
+      threshold to evaluate.
+    columns:
+      - name: product_variant_id
+        description: "Product variant to which the inventory balance refers (part of the composite primary key)."
+        tests:
+          - not_null
+      - name: location_id
+        description: "Store or location to which the inventory balance refers (part of the composite primary key)."
+        tests:
+          - not_null
+      - name: quantity_on_hand
+        description: "Current inventory quantity."
+      - name: reorder_point
+        description: "Minimum inventory level that triggers replenishment."
+      - name: is_reorder_needed
+        description: "true when quantity_on_hand <= reorder_point."
+      - name: updated_at
+        description: "Date and time of the last balance update."
+
+  - name: int_salesperson_default
+        description: "Handling of null salespeople in e-commerce orders."
+    columns:
+      - name: order_id
+        description: "Identifier of the order."
+        tests:
+          - unique
+          - not_null
+
+      - name: salesperson_id
+        description: "Salesperson identifier, with -1 for e-commerce orders without a salesperson."
+
+      - name: salesperson_type
+        description: "Salesperson type: e-commerce or regular salesperson."
+
+  - name: int_daily_demand
+    description: >
+      Complete daily sales time series by product and location, including days
+      with zero sales for accurate averages and standard deviations. Uses the
+      dim_date calendar over an exact 90-day window (> rather than >=). Includes
+      products from stg_stock_levels even when they had no sales during the
+      period. Includes only orders with status 'paid' through reference_date.
+      Demand is gross (returns are not deducted).
+    columns:
+      - name: sale_date
+        description: "Date of the sale."
+        tests:
+          - not_null
+      - name: product_variant_id
+        description: "Variant of the product."
+        tests:
+          - not_null
+      - name: location_id
+        description: "Location of the sale."
+        tests:
+          - not_null
+      - name: daily_demand_qty
+        description: "Quantity sold on the day (may be zero)."
+      - name: is_realized
+        description: "Always true (includes only sales recorded through reference_date)."
+
+  - name: int_inventory_demand_metrics
+    description: >
+      Consolidated demand metrics over exact 30-, 60-, and 90-day windows
+      (using > rather than >=). Includes daily average, total sum, and standard
+      deviation correctly calculated over the complete calendar, including days
+      with zero sales.
+    columns:
+      - name: product_variant_id
+        description: "Variant of the product."
+        tests:
+          - not_null
+      - name: location_id
+        description: "Location."
+        tests:
+          - not_null
+      - name: demand_30d_qty
+        description: "Demand sum over the last 30 days."
+      - name: demand_60d_qty
+        description: "Demand sum over the last 60 days."
+      - name: demand_90d_qty
+        description: "Demand sum over the last 90 days."
+      - name: avg_daily_demand_30d
+        description: "Average daily demand over the last 30 days."
+      - name: avg_daily_demand_60d
+        description: "Average daily demand over the last 60 days."
+      - name: avg_daily_demand_90d
+        description: "Average daily demand over the last 90 days."
+      - name: daily_demand_stddev_90d
+        description: "Standard deviation of daily demand (90 days)."
+      - name: days_with_sales_90d
+        description: "Quantity of days with sales > 0."
+      - name: has_recent_sales
+        description: "Flag indicating whether the product sold in the last 90 days."
+
+  - name: int_preferred_suppliers
+    description: >
+      Unique preferred supplier per product variant.
+      Tie-break order: is_preferred → updated_at desc → lead_time asc → supplier_id.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - product_variant_id
+    columns:
+      - name: product_variant_id
+        description: "Variant of the product."
+        tests:
+          - not_null
+      - name: supplier_id
+        description: "Preferred supplier."
+        tests:
+          - not_null
+      - name: lead_time_days
+        description: "Delivery lead time in days."
+      - name: last_quoted_cost
+        description: "Last quoted cost."
+      - name: is_preferred
+        description: "Flag indicating whether the supplier is preferred."
+      - name: updated_at
+        description: "Date of the last update."
+
+  - name: int_open_purchases
+    description: >
+      Purchases in transit (ordered but not fully received), separated into
+      overdue and future quantities relative to reference_date. Uses the
+      valid_purchase_statuses variable from dbt_project.yml to filter valid
+      statuses. Deduplicates receipts before aggregation.
+    columns:
+      - name: product_variant_id
+        description: "Variant of the product."
+        tests:
+          - not_null
+      - name: location_id
+        description: "Location of target."
+        tests:
+          - not_null
+      - name: open_purchase_qty
+        description: "Total quantity in transit."
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      - name: overdue_purchase_qty
+        description: "Overdue quantity (expected_delivery < reference_date)."
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      - name: future_purchase_qty
+        description: "Future quantity (expected_delivery >= reference_date)."
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+  - name: int_reorder_point_calculated
+    description: >
+      Reorder point calculated using the safety-stock formula. Combines the
+      inventory balance, demand, and supplier data. Preserves the source
+      source_reorder_point separately. For products with no sales,
+      calculated_reorder_point is NULL.
+    columns:
+      - name: product_variant_id
+        description: "Variant of the product."
+        tests:
+          - not_null
+      - name: location_id
+        description: "Location."
+        tests:
+          - not_null
+      - name: current_stock_qty
+        description: "Current inventory balance."
+        tests:
+          - not_null
+      - name: avg_daily_demand_90d
+        description: "Average daily demand (90 days)."
+      - name: daily_demand_stddev_90d
+        description: "Standard deviation of daily demand."
+      - name: has_recent_sales
+        description: "Indicates whether the product had sales in the last 90 days."
+      - name: lead_time_days
+        description: "Supplier delivery lead time."
+      - name: lead_time_demand
+        description: "Demand during the lead time."
+      - name: safety_stock
+        description: "Safety stock (95% service level)."
+      - name: source_reorder_point
+        description: "Original reorder point from the source (may be NULL)."
+      - name: calculated_reorder_point
+        description: "Reorder point calculated by the formula (NULL when there are no sales)."
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0 OR calculated_reorder_point IS NULL"
+      - name: effective_reorder_point
+        description: "COALESCE(source_reorder_point, calculated_reorder_point)."
+      - name: reorder_point_origin
+        description: "Source of the amount: 'source' | 'calculated' | NULL."
+        tests:
+          - accepted_values:
+              values: ['source', 'calculated']
+              config:
+                severity: warn
+
+  - name: int_monthly_product_location_demand
+    description: >
+      Monthly demand base for forecasting. Grain: demand_month +
+      product_variant_id + location_id. The authoritative source is fct_sales,
+      including only orders with status 'paid' and cutoff from the
+      forecast_config.reference_date_sql variable to prevent temporal leakage.
+      Demand is gross (returns are not deducted). Each product/location series
+      begins in the month of its first paid sale and continues through the
+      cutoff; months without sales in this window receive zero-valued metrics.
+      Pairs with no paid sales are excluded. Product and location attributes
+      reflect their current state (dim_product and dim_location do not preserve
+      history), are attached once per series, and are repeated across every month
+      in that series, including zero-sales months. A series is eligible for
+      regression only with at least six months of history and three months with
+      positive demand; all others use baseline_fallback.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - demand_month
+              - product_variant_id
+              - location_id
+    columns:
+      - name: demand_month
+        description: "First day of the demand month."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: full_date
+      - name: year_number
+        description: "Year of the demand month (dim_date)."
+        tests:
+          - not_null
+      - name: quarter_number
+        description: "Quarter of the demand month (dim_date)."
+        tests:
+          - not_null
+      - name: month_number
+        description: "Month (1-12) of the demand month (dim_date)."
+        tests:
+          - not_null
+      - name: product_variant_id
+        description: "Product variant. Business key and part of the grain."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_product')
+                field: product_variant_id
+      - name: product_key
+        description: "Surrogate key of the variant in dim_product, for join downstream."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_product')
+                field: product_key
+      - name: sku
+        description: "SKU of the variant."
+      - name: product_name
+        description: "Name of the product."
+      - name: category_name
+        description: "Product category."
+      - name: brand_name
+        description: "Product brand."
+      - name: location_id
+        description: "Sales location. Business key and part of the grain."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_location')
+                field: location_id
+      - name: location_key
+        description: "Surrogate key of the location in dim_location, for join downstream."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_location')
+                field: location_key
+      - name: location_name
+        description: "Name of the location."
+      - name: location_type
+        description: "Type of the location: store or warehouse."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['store', 'warehouse']
+      - name: city
+        description: "City of the location."
+      - name: state
+        description: "State of the location."
+      - name: demand_qty
+        description: "Quantity sold in the month. Zero when there were no sales."
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: ">= 0"
+      - name: gross_revenue_brl
+        description: "Gross revenue (fct_sales.gross_revenue_brl) for the pair in the month. Zero when there were no sales."
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: ">= 0"
+      - name: order_count
+        description: "Distinct orders with a sale for the pair in the month."
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: ">= 0"
+      - name: item_line_count
+        description: "Order-item lines for the pair in the month."
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: ">= 0"
+      - name: days_with_sales
+        description: "Distinct days in the month with sales quantity > 0. Uses the same semantics as int_inventory_demand_metrics.days_with_sales_90d, adapted to the monthly grain."
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: ">= 0"
+      - name: has_positive_demand
+        description: "Indicates whether demand was greater than zero in the month."
+        tests:
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: "= (demand_qty > 0)"
+      - name: history_month_count
+        description: "Months between the series' first paid sale and the cutoff date."
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: ">= 1"
+      - name: positive_demand_month_count
+        description: "Months with positive demand in the series history."
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: ">= 0"
+      - name: is_regression_eligible
+        description: "True when a series has at least six months of history and three months with positive demand."
+        tests:
+          - not_null
+      - name: forecast_strategy
+        description: "Forecast-stage strategy: regression for eligible series or baseline fallback for short series."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['regression', 'baseline_fallback']
+
+  - name: int_sku_location_signal_features
+    description: >
+      Historical price, sales-frequency and receipt signals at the monthly
+      product-variant and location grain. Every signal is as-of: it only uses
+      dated events before the target month. Current master-date price, stock
+      balance and lead-time fields are intentionally excluded because they do
+      not retain a reliable historical snapshot for backtesting.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - demand_month
+              - product_variant_id
+              - location_id
+    columns:
+      - name: demand_month
+        description: "Target month; signals use prior months only."
+        tests:
+          - not_null
+      - name: product_variant_id
+        description: "Product variant; part of the grain."
+        tests:
+          - not_null
+      - name: location_id
+        description: "Store or distribution center; part of the grain."
+        tests:
+          - not_null
+      - name: last_unit_price
+        description: "Last realized unit price before the target month."
+      - name: rolling_3m_days_with_sales
+        description: "Selling days in the three prior months."
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: ">= 0"
+      - name: rolling_6m_positive_months
+        description: "Positive-demand months in the six prior months."
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: ">= 0 AND rolling_6m_positive_months <= 6"
+      - name: months_since_last_positive_sale
+        description: "Months since the last positive sale before the target month."
+        tests:
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: ">= 0 OR months_since_last_positive_sale IS NULL"
+      - name: received_qty_last_3m
+        description: "Received quantity in the three prior months."
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: ">= 0"
+
+  - name: int_forecast_feature_matrix
+    description: >
+      Monthly feature matrix for training and evaluating demand forecasting
+      models. Grain: demand_month + product_variant_id + location_id. The
+      demand_qty field is the current month's target; lags and rolling windows
+      use only prior months to prevent temporal leakage. Rolling windows are
+      populated only when three or six complete prior months are available.
+      The is_training_eligible flag identifies rows from regression-eligible
+      series that have all required historical features.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - demand_month
+              - product_variant_id
+              - location_id
+    columns:
+      - name: demand_month
+        description: "First day of the month corresponding to the demand_qty target."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: full_date
+      - name: year_number
+        description: "Year of the target month; temporal feature."
+        tests:
+          - not_null
+      - name: quarter_number
+        description: "Quarter of the target month; temporal feature."
+        tests:
+          - not_null
+      - name: month_number
+        description: "Target month number (1-12); temporal feature."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+                quote: false
+      - name: product_variant_id
+        description: "Product variant; categorical feature and part of the grain."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_product')
+                field: product_variant_id
+      - name: product_key
+        description: "Surrogate key of the variant in dim_product."
+        tests:
+          - not_null
+      - name: sku
+        description: "Variant SKU; categorical product attribute."
+      - name: product_name
+        description: "Product name; descriptive categorical attribute."
+      - name: category_name
+        description: "Product category; categorical feature."
+      - name: brand_name
+        description: "Product brand; categorical feature."
+      - name: location_id
+        description: "Demand location; categorical feature and part of the grain."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_location')
+                field: location_id
+      - name: location_key
+        description: "Surrogate key of the location in dim_location."
+        tests:
+          - not_null
+      - name: location_name
+        description: "Location name; descriptive categorical attribute."
+      - name: location_type
+        description: "Location type; categorical feature."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['store', 'warehouse']
+      - name: city
+        description: "Location city; geographic categorical feature."
+      - name: state
+        description: "Location state; geographic categorical feature."
+      - name: demand_qty
+        description: "Quantity demanded in the current month; target variable for the model."
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: ">= 0"
+      - name: last_unit_price
+        description: "Last unit price from a sale before the target month; null if no earlier sale exists."
+      - name: rolling_3m_days_with_sales
+        description: "Selling days in the three months before the target month."
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: ">= 0"
+      - name: rolling_6m_positive_months
+        description: "Positive-demand months in the six months before the target month."
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: ">= 0 AND rolling_6m_positive_months <= 6"
+      - name: months_since_last_positive_sale
+        description: "Months since the last positive sale before the target month."
+        tests:
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: ">= 0 OR months_since_last_positive_sale IS NULL"
+      - name: received_qty_last_3m
+        description: "Received quantity in the three prior months; supply-event coverage is partial."
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: ">= 0"
+      - name: lag_1_qty
+        description: "Demand observed one month before the target month; null in the first month of the series."
+      - name: lag_2_qty
+        description: "Demand observed two months before the target month; null when there is insufficient history."
+      - name: lag_3_qty
+        description: "Demand observed three months before the target month; null when there is insufficient history."
+      - name: rolling_3m_avg_qty
+        description: "Average demand over the three prior months, excluding the target month; null until the full window is available."
+      - name: rolling_6m_avg_qty
+        description: "Average demand over the six prior months, excluding the target month; null until the full window is available."
+      - name: rolling_3m_sum_qty
+        description: "Total demand over the three prior months, excluding the target month; null until the full window is available."
+      - name: gross_revenue_brl
+        description: "Gross revenue realized in the target month."
+        tests:
+          - not_null
+      - name: order_count
+        description: "Number of distinct orders in the target month."
+        tests:
+          - not_null
+      - name: item_line_count
+        description: "Number of order-item lines in the target month."
+        tests:
+          - not_null
+      - name: days_with_sales
+        description: "Number of days with positive demand in the target month."
+        tests:
+          - not_null
+      - name: has_positive_demand
+        description: "Indicates whether demand_qty is greater than zero in the target month."
+        tests:
+          - not_null
+      - name: history_month_count
+        description: "Total number of months available in the product-location series."
+        tests:
+          - not_null
+      - name: positive_demand_month_count
+        description: "Number of months with positive demand in the product-location series."
+        tests:
+          - not_null
+      - name: months_available_before_target
+        description: "Number of complete months available before the target month."
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: ">= 0"
+      - name: is_regression_eligible
+        description: "Indicates whether a series meets the minimum regression criteria."
+        tests:
+          - not_null
+      - name: is_training_eligible
+        description: "Indicates whether a series is eligible for regression and the row has six complete prior months."
+        tests:
+          - not_null
+      - name: forecast_strategy
+        description: "Strategy assigned to the series: regression or baseline fallback."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['regression', 'baseline_fallback']

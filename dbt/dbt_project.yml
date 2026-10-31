@@ -1,0 +1,69 @@
+name: 'retail_analytics'
+version: '1.0.0'
+config-version: 2
+
+profile: 'retail_analytics'
+
+model-paths: ["models"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+
+vars:
+  covid_start_date: '2020-01-01'
+  covid_end_date: '2021-12-31'
+  default_salesperson_id: -1
+  
+  # Inventory and replenishment settings
+  inventory_config:
+    # Demand windows
+    demand_window_days: 90
+    demand_window_30d: 30
+    demand_window_60d: 60
+    
+    # Service level (95% = z-score 1.65)
+    service_level_z_score: 1.65
+    service_level_percentage: 95
+    
+    # Additional coverage for purchase recommendations.
+    target_coverage_days: 30
+    
+    # Reference date (uses the current date by default)
+    reference_date_sql: "CURRENT_DATE"
+    
+    # Demand type for the MVP
+    demand_type: "gross"  # 'gross' | 'net' (subtracts returns)
+    
+    # Minimum order quantity and multiple (planned; not implemented in the MVP)
+    min_order_quantity: null
+    order_quantity_multiple: null
+    
+    # Valid purchase order statuses
+    valid_purchase_statuses:
+      - 'approved'
+      - 'pending'
+      - 'in_transit'
+      - 'partially_received'
+
+  # Demand forecast settings
+  # Parameters shared with ml/demand_forecasting/README.md.
+  forecast_config:
+    # The job replaces the expression with the run's reference_date. For local
+    # dbt runs, CURRENT_DATE preserves the same operational contract.
+    reference_date_sql: "CURRENT_DATE"
+
+models:
+  retail_analytics:
+    staging:
+      +materialized: view
+      +schema: staging
+    intermediate:
+      +materialized: view
+      +schema: intermediate
+    marts:
+      +materialized: table
+      +schema: marts
+
+tests:
+  retail_analytics:
+    +store_failures: false
+    +schema: test_failures

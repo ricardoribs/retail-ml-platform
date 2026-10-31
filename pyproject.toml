@@ -1,0 +1,40 @@
+[tool.ruff]
+
+line-length = 88
+
+target-version = "py312"
+
+exclude = [
+    ".venv",
+    "dbt/target",
+    "dbt/logs",
+    "dbt/dbt_packages",
+]
+
+# Enabled lint rules
+[tool.ruff.lint]
+
+# E: style errors
+# F: logical errors detected by Pyflakes
+# I: import organization and sorting
+select = ["E", "F", "I"]
+
+# Rules used by the Ruff formatter
+[tool.ruff.format]
+
+# Use double quotes for strings
+quote-style = "double"
+
+# Use spaces instead of tabs
+indent-style = "space"
+
+[tool.pytest.ini_options]
+
+# Add the repository root to sys.path so tests use the same import path
+# as notebooks and scripts:
+#   from ml.demand_forecasting.src.config import ...
+# Databricks Repos adds the repository root to sys.path automatically,
+# so imports are identical in both environments.
+pythonpath = ["."]
+
+testpaths = ["ml", "apps"]

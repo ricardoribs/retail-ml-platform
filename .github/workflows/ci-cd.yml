@@ -1,0 +1,504 @@
+name: CI/CD
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - edited
+      - ready_for_review
+  push:
+    branches:
+      - dev
+      - main
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Environment for manual deployment
+        required: true
+        default: development
+        type: choice
+        options:
+          - development
+          - production
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    name: Detect changed areas
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      python: ${{ steps.filter.outputs.python }}
+      dbt: ${{ steps.filter.outputs.dbt }}
+    steps:
+      - name: Check out pull request
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Detect changed areas
+        id: filter
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git diff --name-only "${BASE_SHA}...${HEAD_SHA}" > "$RUNNER_TEMP/changed-files.txt"
+          cat "$RUNNER_TEMP/changed-files.txt"
+
+          if grep -Eq '^(ml/|apps/|ingestion/|dbt/.*\.py$|pyproject\.toml|\.github/workflows/)' "$RUNNER_TEMP/changed-files.txt"; then
+            echo "python=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "python=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if grep -Eq '^(dbt/|\.sqlfluff$|\.sqlfluffignore$|\.github/workflows/)' "$RUNNER_TEMP/changed-files.txt"; then
+            echo "dbt=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "dbt=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  validate-git:
+    name: Validate branches, commits, and PR title
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out pull request history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Install commitlint
+        run: npm install --no-save --package-lock=false @commitlint/cli @commitlint/config-conventional
+
+      - name: Validate branch flow
+        env:
+          PR_HEAD: ${{ github.event.pull_request.head.ref }}
+          PR_BASE: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+
+          case "$PR_HEAD" in
+            feat/*|feature/*|hotfix/*|dev)
+              echo "Source branch accepted: $PR_HEAD"
+              ;;
+            *)
+              echo "Unsupported source branch: $PR_HEAD"
+              echo "Use feat/*, feature/*, hotfix/*, or dev."
+              exit 1
+              ;;
+          esac
+
+          if [[ "$PR_BASE" == "dev" ]]; then
+            case "$PR_HEAD" in
+              feat/*|feature/*|hotfix/*) ;;
+              *) echo "Pull requests to dev must come from feat/*, feature/*, or hotfix/*."; exit 1 ;;
+            esac
+          elif [[ "$PR_BASE" == "main" ]]; then
+            case "$PR_HEAD" in
+              feat/*|feature/*|hotfix/*|dev) ;;
+              *) echo "Pull requests to main may come from feat/*, feature/*, hotfix/*, or dev."; exit 1 ;;
+            esac
+          else
+            echo "Unsupported pull request destination: $PR_BASE"
+            exit 1
+          fi
+
+      - name: Validate all commits in the pull request
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: npx commitlint --config .github/commitlint.config.cjs --from "$BASE_SHA" --to "$HEAD_SHA" --verbose
+
+      - name: Validate pull request title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: printf '%s\n' "$PR_TITLE" | npx commitlint --config .github/commitlint.config.cjs
+
+  lint-python:
+    name: Lint Python (Ruff)
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Install Ruff
+        run: python -m pip install ruff
+      - name: Run lint and formatting checks
+        run: |
+          ruff check .
+          ruff format --check .
+
+  test-python:
+    name: Test Python
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            apps/marina/requirements.txt
+            apps/marina/requirements-vector-search.txt
+      - name: Install test dependencies
+        run: python -m pip install numpy pytest -r apps/marina/requirements.txt -r apps/marina/requirements-vector-search.txt
+      - name: Run Python tests
+        run: python -m pytest ml/demand_forecasting/tests apps/marina/tests
+
+  lint-dbt:
+    name: Lint dbt SQL (SQLFluff)
+    needs: changes
+    if: needs.changes.outputs.dbt == 'true' && github.event.pull_request.head.repo.fork == false
+    runs-on: ubuntu-latest
+    env:
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_HTTP_PATH: ${{ vars.DATABRICKS_HTTP_PATH }}
+      DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+      DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+      CI_PR_NUMBER: ${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install SQL and dbt tools
+        run: python -m pip install dbt-databricks sqlfluff sqlfluff-templater-dbt
+      - name: Check Databricks configuration
+        run: |
+          set -euo pipefail
+          for name in DATABRICKS_HOST DATABRICKS_HTTP_PATH DATABRICKS_CLIENT_ID DATABRICKS_CLIENT_SECRET; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "Missing required GitHub variable or secret: $name"
+              exit 1
+            fi
+          done
+      - name: Create temporary dbt profile
+        run: |
+          cat > dbt/profiles.yml <<'EOF'
+          retail_analytics:
+            outputs:
+              ci_env:
+                type: databricks
+                catalog: retail_analytics
+                schema: "{{ 'ci_pr_' ~ env_var('CI_PR_NUMBER') }}"
+                host: "{{ env_var('DATABRICKS_HOST') }}"
+                http_path: "{{ env_var('DATABRICKS_HTTP_PATH') }}"
+                auth_type: oauth
+                client_id: "{{ env_var('DATABRICKS_CLIENT_ID') }}"
+                client_secret: "{{ env_var('DATABRICKS_CLIENT_SECRET') }}"
+                threads: 1
+            target: ci_env
+          EOF
+      - name: Install dbt packages
+        run: dbt deps --project-dir dbt --profiles-dir dbt
+      - name: Check dbt connection and lint SQL
+        run: |
+          set -euo pipefail
+          run_with_databricks_retry() {
+            local maximum_attempts=3
+            local attempt=1
+            local status=1
+
+            while (( attempt <= maximum_attempts )); do
+              echo "Attempt ${attempt}/${maximum_attempts}: $*"
+              if "$@" > "$RUNNER_TEMP/ci-command.log" 2>&1; then
+                cat "$RUNNER_TEMP/ci-command.log"
+                return 0
+              else
+                status=$?
+                cat "$RUNNER_TEMP/ci-command.log"
+              fi
+
+              if ! grep -Fq "Cannot create the resource" "$RUNNER_TEMP/ci-command.log"; then
+                echo "Non-transient failure; retry skipped."
+                return "$status"
+              fi
+              if (( attempt == maximum_attempts )); then
+                return "$status"
+              fi
+              sleep $((attempt * 30))
+              ((attempt += 1))
+            done
+          }
+
+          run_with_databricks_retry dbt debug --project-dir dbt --profiles-dir dbt --target ci_env
+          run_with_databricks_retry sqlfluff lint dbt/models
+
+  validate-dbt:
+    name: Validate dbt project
+    needs: changes
+    if: needs.changes.outputs.dbt == 'true' && github.event.pull_request.head.repo.fork == false
+    runs-on: ubuntu-latest
+    env:
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_HTTP_PATH: ${{ vars.DATABRICKS_HTTP_PATH }}
+      DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+      DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+      CI_PR_NUMBER: ${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install dbt
+        run: python -m pip install dbt-databricks
+      - name: Check Databricks configuration
+        run: |
+          set -euo pipefail
+          for name in DATABRICKS_HOST DATABRICKS_HTTP_PATH DATABRICKS_CLIENT_ID DATABRICKS_CLIENT_SECRET; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "Missing required GitHub variable or secret: $name"
+              exit 1
+            fi
+          done
+      - name: Create temporary dbt profile
+        id: dbt-profile
+        run: |
+          cat > dbt/profiles.yml <<'EOF'
+          retail_analytics:
+            outputs:
+              ci_env:
+                type: databricks
+                catalog: retail_analytics
+                schema: "{{ 'ci_pr_' ~ env_var('CI_PR_NUMBER') }}"
+                host: "{{ env_var('DATABRICKS_HOST') }}"
+                http_path: "{{ env_var('DATABRICKS_HTTP_PATH') }}"
+                auth_type: oauth
+                client_id: "{{ env_var('DATABRICKS_CLIENT_ID') }}"
+                client_secret: "{{ env_var('DATABRICKS_CLIENT_SECRET') }}"
+                threads: 1
+            target: ci_env
+          EOF
+      - name: Parse, compile, run, and test dbt models
+        run: |
+          set -euo pipefail
+          dbt deps --project-dir dbt --profiles-dir dbt
+          dbt parse --project-dir dbt --profiles-dir dbt --target ci_env
+          dbt compile --project-dir dbt --profiles-dir dbt --target ci_env
+          dbt run --project-dir dbt --profiles-dir dbt --target ci_env --select +int_forecast_feature_matrix
+          dbt test --project-dir dbt --profiles-dir dbt --target ci_env --select int_monthly_product_location_demand int_forecast_feature_matrix
+          dbt run --project-dir dbt --profiles-dir dbt --target ci_env --select +test_type:singular
+          dbt test --project-dir dbt --profiles-dir dbt --target ci_env --select test_type:singular
+      - name: Remove temporary pull request schema
+        if: always() && steps.dbt-profile.outcome == 'success'
+        run: |
+          dbt run-operation drop_ci_schemas --project-dir dbt --profiles-dir dbt --target ci_env --args "{pr_id: ${CI_PR_NUMBER}}"
+      - name: Upload dbt diagnostics
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dbt-diagnostics-${{ github.event.pull_request.number }}
+          path: |
+            dbt/logs/**
+            dbt/target/manifest.json
+            dbt/target/run_results.json
+            dbt/target/compiled/**
+          if-no-files-found: ignore
+
+  deployment-preflight:
+    name: Check Databricks deployment files
+    if: (github.event_name == 'push' && github.ref_name == 'dev') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Verify deployment configuration
+        run: |
+          test -f databricks.yml
+          test -f ingestion/bundle/bronze_ingestion_job.yml
+      - name: Ensure the selected environment matches the branch
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+          if [[ "$TARGET" == "production" && "$GITHUB_REF_NAME" != "main" ]]; then
+            echo "Production deploys must be started from main."
+            exit 1
+          fi
+          if [[ "$TARGET" == "development" && "$GITHUB_REF_NAME" != "dev" ]]; then
+            echo "Development deploys must be started from dev."
+            exit 1
+          fi
+
+  deploy-databricks:
+    name: Deploy and run Databricks job
+    needs: deployment-preflight
+    if: (github.event_name == 'push' && github.ref_name == 'dev') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    environment:
+      name: ${{ github.event_name == 'workflow_dispatch' && inputs.target || 'development' }}
+    env:
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_HTTP_PATH: ${{ vars.DATABRICKS_HTTP_PATH }}
+      DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+      DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+      DATABRICKS_JOB_ID: ${{ vars.DATABRICKS_JOB_ID }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Check Databricks configuration
+        run: |
+          set -euo pipefail
+          for name in DATABRICKS_HOST DATABRICKS_CLIENT_ID DATABRICKS_CLIENT_SECRET DATABRICKS_JOB_ID; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "Missing required GitHub variable or secret: $name"
+              exit 1
+            fi
+          done
+          if [[ ! "$DATABRICKS_JOB_ID" =~ ^[0-9]+$ ]]; then
+            echo "DATABRICKS_JOB_ID must be numeric."
+            exit 1
+          fi
+      - name: Install Databricks CLI
+        if: github.ref_name == 'dev'
+        uses: databricks/setup-cli@bc7e6aabb6006d8d1758bd25ee1a100935c9cb7c # v1.7.0
+        with:
+          version: 1.7.0
+      - name: Validate and deploy bundle to development
+        if: github.ref_name == 'dev'
+        env:
+          DATABRICKS_AUTH_TYPE: oauth-m2m
+        run: |
+          set -euo pipefail
+          databricks version
+          databricks bundle validate --target dev
+          databricks bundle plan --target dev
+          databricks bundle deploy --target dev
+      - name: Trigger and monitor Databricks job
+        run: |
+          set -euo pipefail
+          DATABRICKS_HOST="${DATABRICKS_HOST%/}"
+          token_response=$(curl --fail --silent --show-error \
+            --request POST \
+            --header "Content-Type: application/x-www-form-urlencoded" \
+            --data-urlencode "grant_type=client_credentials" \
+            --data-urlencode "scope=all-apis" \
+            --user "${DATABRICKS_CLIENT_ID}:${DATABRICKS_CLIENT_SECRET}" \
+            "${DATABRICKS_HOST}/oidc/v1/token")
+          access_token=$(jq -r '.access_token // empty' <<< "$token_response")
+          if [[ -z "$access_token" ]]; then
+            echo "Databricks did not return an OAuth access token."
+            exit 1
+          fi
+          echo "::add-mask::$access_token"
+
+          response=$(curl --fail --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer ${access_token}" \
+            --header "Content-Type: application/json" \
+            --data "{\"job_id\": ${DATABRICKS_JOB_ID}}" \
+            "${DATABRICKS_HOST}/api/2.2/jobs/run-now")
+          run_id=$(jq -r '.run_id // empty' <<< "$response")
+          if [[ -z "$run_id" ]]; then
+            echo "Databricks did not return a run_id."
+            exit 1
+          fi
+          printf '%s\n' "$run_id" > databricks_run_id.txt
+          echo "Databricks job started. Run ID: $run_id"
+
+          poll_interval=15
+          maximum_attempts=$((60 * 60 / poll_interval))
+          for ((attempt = 1; attempt <= maximum_attempts; attempt++)); do
+            response=$(curl --fail --silent --show-error \
+              --header "Authorization: Bearer ${access_token}" \
+              "${DATABRICKS_HOST}/api/2.2/jobs/runs/get?run_id=${run_id}")
+            lifecycle_state=$(jq -r '.state.life_cycle_state // "UNKNOWN"' <<< "$response")
+            result_state=$(jq -r '.state.result_state // ""' <<< "$response")
+            state_message=$(jq -r '.state.state_message // ""' <<< "$response")
+            echo "Attempt ${attempt}/${maximum_attempts}: ${lifecycle_state} / ${result_state}"
+
+            case "$lifecycle_state" in
+              TERMINATED)
+                if [[ "$result_state" == "SUCCESS" ]]; then
+                  echo "Databricks job completed successfully."
+                  exit 0
+                fi
+                echo "Databricks job finished with result ${result_state}."
+                echo "${state_message}"
+                exit 1
+                ;;
+              SKIPPED|INTERNAL_ERROR)
+                echo "Databricks job ended in state ${lifecycle_state}."
+                echo "${state_message}"
+                exit 1
+                ;;
+            esac
+            sleep "$poll_interval"
+          done
+          echo "Databricks job did not finish within 60 minutes."
+          exit 1
+      - name: Upload Databricks run identifier
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: databricks-run-${{ github.run_id }}
+          path: databricks_run_id.txt
+          if-no-files-found: ignore
+
+  create-release-tag:
+    name: Create release tag
+    if: github.event_name == 'workflow_dispatch' && inputs.target == 'production' && github.ref_name == 'main'
+    needs: deploy-databricks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out full history and tags
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Calculate and push semantic version tag
+        run: |
+          set -euo pipefail
+          git fetch --tags origin
+          last_tag=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1)
+          if [[ -z "$last_tag" ]]; then
+            last_tag='v0.0.0'
+            commit_range='HEAD'
+          else
+            commit_range="${last_tag}..HEAD"
+          fi
+
+          version_number="${last_tag#v}"
+          IFS='.' read -r major minor patch <<< "$version_number"
+          commits=$(git log "$commit_range" --pretty=format:'%s%n%b')
+          if grep -Eq 'BREAKING CHANGE|^[a-z]+(\(.+\))?!:' <<< "$commits"; then
+            ((major += 1))
+            minor=0
+            patch=0
+          elif grep -Eq '^feat(\(.+\))?:' <<< "$commits"; then
+            ((minor += 1))
+            patch=0
+          else
+            ((patch += 1))
+          fi
+
+          release_version="v${major}.${minor}.${patch}"
+          echo "Previous version: ${last_tag}"
+          echo "New version: ${release_version}"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag --annotate "$release_version" --message "Release ${release_version}"
+          git push origin "$release_version"

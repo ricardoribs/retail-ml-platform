@@ -1,0 +1,30 @@
+# ==========================================
+# 1. Credentials and Environment Variables
+# ==========================================
+.env
+*.env
+!.env.example
+dbt/profiles.yml
+.databricks/
+/test-results/
+
+# ==========================================
+# 2. dbt-generated Files and Directories
+# ==========================================
+dbt/target/
+dbt/logs/
+dbt/dbt_packages/
+/logs/
+/target/
+
+# ==========================================
+# 3. Python and Virtual Environments
+# ==========================================
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+.pytest_cache/
+.ruff_cache/
+/ml/demand_forecasting/notebooks/data_audit_report.txt

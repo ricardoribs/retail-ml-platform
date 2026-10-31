@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title">
+  <title id="title">Retail Analytics</title>
+  <rect x="30" y="144" width="40" height="82" rx="8" fill="#1f4e79"/>
+  <rect x="90" y="104" width="40" height="122" rx="8" fill="#2878a8"/>
+  <rect x="150" y="62" width="40" height="164" rx="8" fill="#46a183"/>
+  <path d="M35 112 94 78l55 5 66-50" fill="none" stroke="#172b4d" stroke-linecap="round" stroke-linejoin="round" stroke-width="12"/>
+  <path d="m194 32 23 1-2 23" fill="none" stroke="#172b4d" stroke-linecap="round" stroke-linejoin="round" stroke-width="12"/>
+</svg>

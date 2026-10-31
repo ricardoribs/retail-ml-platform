@@ -1,0 +1,27 @@
+resources:
+  jobs:
+    data_quality_gate_dbt_pilot:
+      name: data-quality-gate-dbt-pilot
+      description: >-
+        Manual, synthetic-data-only dbt validation used as evidence for the
+        Data Quality Gate V2 exit gate.
+      max_concurrent_runs: 1
+      tags:
+        purpose: data-quality-gate-pilot
+        data-classification: synthetic
+        automation: manual-only
+      tasks:
+        - task_key: dbt_validation
+          max_retries: 0
+          disable_auto_optimization: true
+          notebook_task:
+            notebook_path: ../src/dbt_pilot_runner.py
+            base_parameters:
+              dbt_catalog: ${var.catalog}
+              dbt_schema: data_quality_gate_pilot
+              inject_failure: "false"
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "2"

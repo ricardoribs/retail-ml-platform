@@ -1,0 +1,52 @@
+[sqlfluff]
+
+# Databricks SQL dialect
+dialect = sparksql
+
+# Enable Jinja templating and dbt functions such as ref() and source()
+templater = dbt
+
+# Maximum line length
+max_line_length = 120
+
+# Ignore formatting rules that conflict with the project style
+# LT01: vertical alignment of aliases
+# LT02: inconsistent indentation in the project
+# LT08: blank line after CTEs
+# AL01: implicit or explicit table aliases
+# ST06: column order in SELECT
+# AM05: fully qualified JOINs
+# RF04: keywords used as identifiers
+# ST02: CASE versus COALESCE
+exclude_rules = LT01, LT02, LT05, LT08, AL01, ST06, AM05, RF04, ST02
+
+# SQLFluff settings for the dbt templater
+[sqlfluff:templater:dbt]
+
+# Directory containing dbt_project.yml
+project_dir = dbt
+
+# Directory where CI creates the temporary profiles.yml
+profiles_dir = dbt
+
+# Profile name declared in profiles.yml
+profile = retail_analytics
+
+# Temporary target used by CI
+target = ci_env
+
+# Indentation settings
+[sqlfluff:indentation]
+
+# Use four spaces per indentation level
+tab_space_size = 4
+
+# Set SQL keywords to lowercase
+[sqlfluff:rules:capitalisation.keywords]
+
+capitalisation_policy = lower
+
+# Set table names, columns, and aliases to lowercase
+[sqlfluff:rules:capitalisation.identifiers]
+
+extended_capitalisation_policy = lower

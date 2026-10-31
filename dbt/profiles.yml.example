@@ -1,0 +1,21 @@
+retail_analytics:
+  outputs:
+    dev:
+      type: databricks
+      catalog: retail_analytics
+      schema: dev
+      host: <databricks-workspace-url>
+      http_path: /sql/1.0/warehouses/<warehouse-id>
+      token: "{{ env_var('DATABRICKS_TOKEN') }}"
+      threads: 4
+
+    prod:
+      type: databricks
+      catalog: retail_analytics
+      schema: prod
+      host: <databricks-workspace-url>
+      http_path: /sql/1.0/warehouses/<warehouse-id>
+      token: "{{ env_var('DATABRICKS_TOKEN') }}"
+      threads: 4
+
+  target: dev

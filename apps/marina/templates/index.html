@@ -1,0 +1,1007 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f5f7">
+  <meta name="description" content="Marina, the Retail Analytics project data assistant.">
+  <link rel="icon" href="/static/logo-retail-analytics.svg" type="image/svg+xml">
+  <title>Marina | Retail Analytics</title>
+  <style>
+    :root {
+      --primary: #0066cc;
+      --primary-focus: #0071e3;
+      --ink: #1d1d1f;
+      --muted: #7a7a7a;
+      --muted-80: #333333;
+      --line: #e0e0e0;
+      --soft-line: #f0f0f0;
+      --canvas: #ffffff;
+      --parchment: #f5f5f7;
+      --pearl: #fafafc;
+      --chart-navy: #173f5f;
+      --chart-blue: #4f7891;
+      --chart-teal: #287a78;
+      --chart-amber: #c28a3d;
+      --chart-grid: #d9e3e8;
+      --chart-track: #e9f0f2;
+      --marina-plum: #51284f;
+      --marina-rose: #a64670;
+      --marina-peach: #e8b88a;
+      --marina-gradient: linear-gradient(135deg, var(--marina-plum) 0%, var(--marina-rose) 58%, var(--marina-peach) 100%);
+      --marina-message-gradient: linear-gradient(135deg, var(--marina-plum) 0%, var(--marina-rose) 100%);
+      --serif: "SF Pro Display", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      --text: "SF Pro Text", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html { min-width: 320px; scroll-behavior: smooth; }
+    body { margin: 0; color: var(--ink); background: var(--parchment); font-family: var(--text); font-size: 17px; line-height: 1.47; letter-spacing: -.374px; -webkit-font-smoothing: antialiased; }
+    body.marina-modal-open { overflow: hidden; }
+    button, textarea { font: inherit; }
+    button { color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    button:focus-visible, a:focus-visible, summary:focus-visible, textarea:focus-visible { outline: 2px solid var(--primary-focus); outline-offset: 3px; }
+    button:active, a:active { transform: scale(.98); }
+    a { color: inherit; text-decoration: none; }
+    img { display: block; max-width: 100%; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+    .skip-link { position: fixed; z-index: 20; top: 12px; left: 12px; padding: 8px 15px; border-radius: 8px; background: var(--ink); color: white; font-size: 14px; transform: translateY(-150%); }
+    .skip-link:focus { transform: none; }
+
+    .app-shell { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: 100svh; }
+    .sidebar {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      min-height: 100svh;
+      padding: 32px 24px 24px;
+      border-right: 1px solid rgba(255,255,255,.18);
+      color: white;
+      background: linear-gradient(135deg, #1a4a7a 0%, #4d8fc4 58%, #e8b88a 100%);
+      transition: width 180ms ease, opacity 180ms ease, padding 180ms ease;
+    }
+    .brand-head {
+      position: absolute;
+      top: 32px;
+      right: 24px;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+    }
+    .collapse-button { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border: 1px solid rgba(255,255,255,.45); border-radius: 50%; background: rgba(255,255,255,.88); color: var(--chart-navy); }
+    .collapse-button:hover { border-color: white; background: white; }
+    .brand-company {
+      display: grid;
+      width: 100%;
+      min-height: 142px;
+      place-items: center;
+      padding: 0 0 22px;
+      border-bottom: 1px solid rgba(255,255,255,.28);
+    }
+    .brand-company img {
+      display: block;
+      width: 118px;
+      height: 118px;
+      object-fit: contain;
+      filter: brightness(0) invert(1);
+    }
+    .brand-company span { font-size: 14px; font-weight: 600; letter-spacing: -.224px; }
+    .nav-label { margin: 28px 0 12px; color: rgba(255,255,255,.86); font-size: 13px; font-weight: 600; line-height: 1.29; }
+    .nav-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+    .nav-button { display: flex; align-items: center; gap: 11px; width: 100%; min-height: 50px; padding: 11px 14px; border: 1px solid transparent; border-radius: 18px; background: transparent; color: white; font-size: 16px; line-height: 1.4; text-align: left; }
+    .nav-dot { width: 5px; height: 5px; flex: 0 0 5px; border-radius: 50%; background: var(--muted); }
+
+    .workspace { min-width: 0; padding: 56px clamp(28px, 5vw, 64px) 48px; background: var(--canvas); }
+    .workspace-inner { width: min(1120px, 100%); margin: 0 auto; }
+    .eyebrow { margin: 0 0 17px; color: var(--primary); font-size: 14px; font-weight: 600; line-height: 1.29; letter-spacing: .6px; }
+    .starting { margin-top: 0; }
+    .section-label { margin: 0 0 28px; color: var(--ink); }
+    .section-label {
+      font-family: var(--serif);
+      font-size: 28px;
+      font-weight: 600;
+      line-height: 1.1;
+      letter-spacing: -.24px;
+    }
+    .overview-header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 32px;
+      margin-bottom: 28px;
+    }
+    .overview-eyebrow {
+      margin: 0 0 7px;
+      color: var(--chart-teal);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .7px;
+      text-transform: uppercase;
+    }
+    .overview-header .section-label { margin-bottom: 8px; }
+    .overview-intro { max-width: 620px; margin: 0; color: var(--muted); font-size: 14px; }
+    .marina-launch-button {
+      display: inline-flex;
+      flex: 0 0 auto;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 10px;
+      min-width: 176px;
+      padding: 8px 16px 8px 10px;
+      border: 0;
+      border-radius: 999px;
+      color: white;
+      background: var(--marina-gradient);
+      box-shadow: 0 8px 22px rgba(81,40,79,.3);
+      text-align: left;
+    }
+    .marina-launch-button:hover { filter: brightness(1.06); transform: translateY(-1px); }
+    .marina-launch-avatar {
+      display: block;
+      flex: 0 0 36px;
+      width: 36px;
+      height: 36px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,.4);
+      border-radius: 50%;
+      background: rgba(255,255,255,.13);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.18);
+    }
+    .marina-launch-avatar img { width: 100%; height: 100%; object-fit: cover; object-position: center 42%; }
+    .marina-launch-copy { min-width: 0; }
+    .marina-launch-title { display: block; font-size: 14px; font-weight: 650; line-height: 1.25; }
+    .marina-launch-subtitle { display: block; margin-top: 2px; font-size: 11px; font-weight: 400; line-height: 1.25; opacity: .78; }
+    .sidebar .marina-launch-button {
+      width: 100%;
+      margin-top: 14px;
+      border: 1px solid rgba(255,255,255,.45);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 8px 22px rgba(81,40,79,.3);
+    }
+    .conversation { margin-top: 46px; }
+    .technical-visuals { margin-top: 46px; }
+    .visuals-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; }
+    .visual-card {
+      display: flex; min-height: 224px; flex-direction: column; padding: 24px;
+      border: 1px solid #dce5e9; border-radius: 18px;
+      background: linear-gradient(180deg, var(--canvas) 0%, #fbfcfd 100%);
+      box-shadow: 0 10px 28px rgba(23,63,95,.045);
+    }
+    .visual-card--forecast {
+      display: grid;
+      grid-column: 1 / -1;
+      grid-template-columns: minmax(0, 1fr) 250px;
+      grid-template-rows: auto minmax(0, 1fr);
+      column-gap: 28px;
+      min-height: 232px;
+    }
+    .visual-card--seasonality,
+    .visual-card--growth,
+    .visual-card--cd-growth,
+    .visual-card--recommendation { grid-column: span 6; min-height: 252px; }
+    .visual-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+    .visual-card--forecast .visual-card-header { display: contents; }
+    .visual-card-heading { min-width: 0; }
+    .visual-card h3 { margin: 0; font-size: 18px; font-weight: 600; line-height: 1.3; }
+    .visual-caption { min-height: 20px; margin: 2px 0 14px; color: var(--muted); font-size: 14px; line-height: 1.4; }
+    .visual-context { margin: 8px 0 12px; color: var(--muted); font-size: 12px; line-height: 1.4; }
+    .visual-context strong { display: block; margin-top: 3px; color: var(--ink); font-size: 14px; font-weight: 600; }
+    .forecast-summary { grid-row: 1 / 3; grid-column: 2; padding-left: 22px; border-left: 1px solid var(--line); }
+    .forecast-summary-label { display: block; margin-bottom: 7px; color: var(--chart-teal); font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; }
+    .forecast-period-label { display: block; margin-top: 9px; color: var(--muted); font-size: 12px; line-height: 1.35; }
+    .forecast-reading { display: grid; gap: 5px; margin: 10px 0 0; padding-left: 17px; color: var(--muted); font-size: 12px; line-height: 1.4; }
+    .forecast-reading li::marker { color: var(--chart-teal); font-weight: 700; }
+    .visual-state { flex: 1; margin: 0; color: var(--muted); font-size: 14px; }
+    .visual-card--forecast .visual-state { grid-row: 2; grid-column: 1; margin-top: 8px; }
+    .metric-chart { display: block; width: 100%; height: 116px; overflow: visible; }
+    .chart-axis { stroke: var(--chart-grid); stroke-width: 1; }
+    .forecast-area { fill: url(#forecast-area-gradient); }
+    .chart-line { fill: none; stroke: var(--chart-teal); stroke-linecap: round; stroke-linejoin: round; stroke-width: 2.5; }
+    .chart-point { fill: var(--canvas); stroke: var(--chart-teal); stroke-width: 2; }
+    .chart-point-latest { fill: var(--chart-amber); stroke: var(--canvas); stroke-width: 2.5; filter: drop-shadow(0 2px 3px rgba(194,138,61,.28)); }
+    .chart-value { fill: var(--chart-navy); font-size: 12px; font-weight: 600; text-anchor: middle; }
+    .chart-value-latest { fill: #9a6825; }
+    .chart-label { fill: var(--muted); font-size: 11px; text-anchor: middle; }
+    .chart-baseline-label { fill: var(--muted); font-size: 10px; text-anchor: end; }
+    .seasonality-bar-high { fill: var(--chart-teal); }
+    .seasonality-bar-low { fill: var(--chart-blue); }
+    .seasonality-bar-neutral { fill: var(--chart-amber); }
+    .seasonality-legend { display: flex; flex-wrap: wrap; gap: 5px 10px; margin-top: 6px; }
+    .seasonality-legend-item { display: inline-flex; align-items: center; gap: 4px; }
+    .seasonality-legend-swatch { width: 8px; height: 8px; border-radius: 50%; }
+    .seasonality-legend-swatch.high { background: var(--chart-teal); }
+    .seasonality-legend-swatch.low { background: var(--chart-blue); }
+    .seasonality-legend-swatch.neutral { background: var(--chart-amber); }
+    .seasonality-selection { display: block; margin-top: 5px; color: var(--muted); font-size: 12px; line-height: 1.4; }
+    .growth-list { display: grid; gap: 10px; }
+    .growth-row { display: grid; grid-template-columns: 18px minmax(86px, 1.15fr) minmax(72px, 1.35fr) auto; align-items: center; gap: 7px; font-size: 12px; line-height: 1.3; }
+    .growth-rank { color: #8a969d; font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .growth-label { overflow: hidden; color: var(--ink); text-overflow: ellipsis; white-space: nowrap; }
+    .growth-track { display: block; height: 9px; overflow: hidden; border-radius: 99px; background: var(--chart-track); }
+    .growth-fill { display: block; height: 100%; min-width: 2px; border-radius: inherit; background: linear-gradient(90deg, var(--chart-navy), var(--chart-teal)); }
+    .growth-row:first-child .growth-fill { background: linear-gradient(90deg, var(--chart-navy) 0%, var(--chart-teal) 72%, var(--chart-amber) 100%); }
+    .growth-row:first-child .growth-rank { color: #9a6825; }
+    .growth-row:first-child .growth-value { color: var(--chart-navy); font-weight: 600; }
+    .growth-value { min-width: 48px; color: var(--ink); font-variant-numeric: tabular-nums; text-align: right; }
+    .recommendation-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+    .recommendation-list li { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 38px; border-bottom: 1px solid var(--soft-line); }
+    .recommendation-rank { color: var(--chart-blue); font-size: 18px; }
+    .recommendation-region { color: var(--ink); }
+    .recommendation-list strong { color: var(--muted); font-size: 14px; font-weight: 400; font-variant-numeric: tabular-nums; text-align: right; }
+    .recommendation-list li:first-child .recommendation-rank,
+    .recommendation-list li:first-child strong { color: #9a6825; font-weight: 600; }
+    .card-action { align-self: flex-start; margin-top: auto; padding-top: 12px; color: var(--primary); font-size: 14px; line-height: 1.4; }
+    .conversation-head { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
+    .conversation-head strong { font-size: 14px; font-weight: 600; }
+    .conversation-head::after { content: ""; height: 1px; flex: 1; background: var(--line); }
+    .conversation-intro { margin: 0; }
+    .message { margin-bottom: 16px; }
+    .message-author { display: block; margin-bottom: 5px; font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: .3px; }
+    .message-bubble { padding: 11px 15px; font-size: 15px; line-height: 1.55; }
+    .message.user .message-bubble { background: #e8f0fb; border-radius: 0 14px 14px 14px; border-left: 3px solid var(--primary); color: var(--ink); }
+    .message.marina .message-bubble { background: var(--parchment); border-radius: 14px 14px 14px 0; border: 1px solid var(--line); }
+    .message-content { white-space: pre-wrap; overflow-wrap: anywhere; }
+    .message-sources { margin: 8px 0 0; padding-left: 18px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+    .indicator-result {
+      display: block;
+      color: var(--ink);
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 1.35;
+    }
+    .indicator-result.is-unavailable {
+      color: #6f6253;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .indicator-meta {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 500;
+      line-height: 1.35;
+    }
+
+    .app-shell.sidebar-collapsed { grid-template-columns: 0 minmax(0, 1fr); }
+    .app-shell.sidebar-collapsed .sidebar { width: 0; min-width: 0; padding: 0; overflow: hidden; opacity: 0; pointer-events: none; border: 0; }
+    .sidebar-open { display: none; position: fixed; z-index: 10; top: 18px; left: 18px; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--canvas); color: var(--primary); }
+    .app-shell.sidebar-collapsed ~ .sidebar-open { display: inline-flex; }
+
+    @media (max-width: 1100px) {
+      .app-shell { grid-template-columns: 220px minmax(0, 1fr); }
+      .app-shell.sidebar-collapsed { grid-template-columns: 0 minmax(0, 1fr); }
+      .visual-card--seasonality,
+      .visual-card--growth,
+      .visual-card--cd-growth,
+      .visual-card--recommendation { grid-column: span 6; }
+      .visual-card--forecast { grid-template-columns: minmax(0, 1fr) 210px; }
+    }
+    @media (max-width: 760px) {
+      .app-shell { display: block; }
+      .sidebar { min-height: auto; padding: 18px 20px 0; border-right: 0; border-bottom: 1px solid var(--line); }
+      .brand-head { position: static; }
+      .brand-company { display: none; }
+      .nav-label { margin-top: 20px; }
+      .nav-list { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 14px; }
+      .nav-button { width: auto; min-width: max-content; padding: 9px 12px; font-size: 14px; }
+      .workspace { padding: 40px 20px; }
+      .app-shell.sidebar-collapsed .sidebar { display: none; }
+      .app-shell.sidebar-collapsed { display: block; }
+      .app-shell.sidebar-collapsed ~ .sidebar-open { display: inline-flex; }
+      .overview-header { align-items: flex-start; flex-direction: column; gap: 18px; }
+    }
+    @media (max-width: 560px) {
+      .hero h1 { font-size: 34px; }
+      .hero p { font-size: 20px; }
+      .visual-card--forecast,
+      .visual-card--seasonality,
+      .visual-card--growth,
+      .visual-card--cd-growth,
+      .visual-card--recommendation { grid-column: 1 / -1; }
+      .visual-card--forecast { display: flex; }
+      .visual-card--forecast .visual-card-header { display: flex; flex-direction: column; gap: 14px; }
+      .forecast-summary { width: 100%; padding: 14px 0 0; border-top: 1px solid var(--line); border-left: 0; }
+      .marina-composer { padding-left: 12px; }
+      .marina-send-button { width: 44px; padding: 11px; }
+      .send-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+    .typing-indicator {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 12px 16px;
+      margin-bottom: 18px;
+      border-radius: 18px;
+      background: var(--parchment);
+      width: fit-content;
+    }
+    .typing-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--muted);
+      animation: typing-bounce 1.2s ease-in-out infinite;
+    }
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes typing-bounce {
+      0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+      30% { transform: translateY(-6px); opacity: 1; }
+    }
+    @keyframes marina-thinking {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+    /* Overlay */
+    .marina-modal-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(15,22,32,.42);
+      -webkit-backdrop-filter: blur(6px);
+      backdrop-filter: blur(6px);
+      z-index: 9;
+      align-items: center; justify-content: center;
+      padding: 24px;
+    }
+    .marina-modal-overlay.open { display: flex; }
+
+    /* Modal */
+    .marina-modal {
+      width: min(520px, 100%);
+      border-radius: 18px;
+      overflow: hidden;
+      position: relative;
+      background: var(--marina-gradient);
+      box-shadow: 0 10px 44px rgba(81,40,79,.38);
+      display: flex; flex-direction: column;
+      height: min(640px, calc(100svh - 48px));
+      max-height: min(640px, calc(100svh - 48px));
+    }
+    .marina-modal-overlay.open .marina-modal {
+      animation: marina-modal-in 180ms ease-out;
+    }
+    @keyframes marina-modal-in {
+      from { opacity: 0; transform: translateY(12px) scale(.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .marina-modal::before {
+      content: ""; position: absolute; inset: 0;
+      background: linear-gradient(180deg, rgba(45,18,43,.12), rgba(45,18,43,.28)); border-radius: inherit;
+      pointer-events: none; z-index: 0;
+    }
+    .marina-modal-inner {
+      position: relative; z-index: 1;
+      display: flex; flex-direction: column;
+      height: 100%;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    /* Header */
+    .marina-modal-header {
+      padding: 20px 22px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.15);
+      flex-shrink: 0;
+    }
+    .marina-modal-header-row {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .marina-modal-close {
+      background: rgba(255,255,255,.15); border: none; border-radius: 50%;
+      width: 26px; height: 26px; color: white; cursor: pointer;
+      font-size: 15px; display: flex; align-items: center; justify-content: center;
+      font-family: var(--text);
+    }
+    .marina-modal-title { font-size: 17px; font-weight: 600; color: white; margin-bottom: 5px; font-style: normal; }
+    .marina-modal-title em { font-style: italic; }
+    .marina-modal-desc { font-size: 13px; color: rgba(255,255,255,.7); line-height: 1.5; }
+
+    /* Chat log */
+    .marina-chat-log {
+      flex: 1; overflow-y: auto;
+      padding: 16px 18px 0;
+      display: flex; flex-direction: column;
+      min-height: 0;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,.3) transparent;
+    }
+    .marina-chat-log::-webkit-scrollbar { width: 6px; }
+    .marina-chat-log::-webkit-scrollbar-track { background: transparent; }
+    .marina-chat-log::-webkit-scrollbar-thumb {
+      border-radius: 999px;
+      background: rgba(255,255,255,.3);
+    }
+    .marina-chat-log::-webkit-scrollbar-button { display: none; }
+
+    /* Mensagens */
+    .message { margin-bottom: 16px; }
+    .message.marina {
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1fr);
+      gap: 9px;
+      align-items: start;
+    }
+    .message.user {
+      align-self: flex-end;
+      width: fit-content;
+      max-width: 86%;
+    }
+    .message-main { min-width: 0; }
+    .message-avatar {
+      display: block;
+      width: 42px;
+      height: 42px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.28);
+      border-radius: 50%;
+      background: rgba(255,255,255,0.12);
+      box-shadow: 0 2px 8px rgba(15,22,32,0.18);
+    }
+    .message-avatar img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center;
+    }
+    .message-author {
+      display: block; margin-bottom: 4px;
+      font-size: 11px; font-weight: 600; letter-spacing: .3px;
+      color: rgba(255,255,255,0.5);
+    }
+    .message-bubble { padding: 11px 15px; font-size: 14px; line-height: 1.55; border-radius: 14px; }
+    .message-content { white-space: pre-wrap; overflow-wrap: anywhere; }
+    .message-sources { margin: 8px 0 0; padding-left: 18px; color: rgba(255,255,255,0.5); font-size: 12px; line-height: 1.5; }
+
+    /* User message bubble */
+    .message.user .message-bubble {
+      background: var(--marina-message-gradient);
+      color: #fff;
+      border-radius: 14px 0 14px 14px;
+      border: 1px solid rgba(255,255,255,0.15);
+    }
+    .message.user .message-author {
+      color: rgba(255,255,255,0.6);
+      text-align: right;
+    }
+
+    /* Marina message bubble */
+    .message.marina .message-bubble {
+      background: rgba(81,40,79,.42);
+      color: rgba(255,255,255,0.92);
+      border-radius: 14px 14px 14px 0;
+      border: 1px solid rgba(255,255,255,0.18);
+    }
+    .message.marina .message-author { color: rgba(255,255,255,0.5); }
+
+    /* Typing indicator */
+    .typing-message {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin-bottom: 16px;
+    }
+    .typing-message .message-avatar {
+      animation: marina-thinking 1.5s ease-in-out infinite;
+    }
+    .typing-indicator {
+      display: flex; align-items: center; gap: 5px;
+      padding: 11px 15px;
+      border-radius: 18px;
+      background: rgba(81,40,79,.42);
+      border: 1px solid rgba(255,255,255,0.15);
+      width: fit-content;
+    }
+    .typing-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: rgba(255,255,255,0.6);
+      animation: typing-bounce 1.2s ease-in-out infinite;
+    }
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+    /* Composer */
+    .marina-composer-wrap {
+      z-index: 1;
+      flex-shrink: 0;
+      padding: 14px 18px 18px;
+      border-top: 1px solid rgba(255,255,255,.1);
+      background: rgba(81,40,79,.22);
+      backdrop-filter: blur(8px);
+    }
+    .marina-composer {
+      display: flex; align-items: flex-end; gap: 8px;
+      padding: 10px 10px 10px 16px;
+      border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 18px;
+      background: rgba(255,255,255,0.1);
+    }
+    .marina-composer:focus-within {
+      border-color: rgba(255,255,255,0.5);
+      outline: 2px solid rgba(255,255,255,0.2);
+      outline-offset: 2px;
+    }
+    .marina-composer textarea {
+      flex: 1; min-width: 0;
+      height: 56px; min-height: 56px; max-height: 140px;
+      padding: 8px 0; resize: none; overflow-y: hidden;
+      border: 0; outline: 0; background: transparent;
+      color: white; font-size: 15px; line-height: 1.5;
+      font-family: var(--text);
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.35) transparent;
+    }
+    .marina-composer textarea::placeholder { color: rgba(255,255,255,0.4); }
+    .marina-composer textarea::-webkit-scrollbar { width: 6px; }
+    .marina-composer textarea::-webkit-scrollbar-track { background: transparent; }
+    .marina-composer textarea::-webkit-scrollbar-thumb {
+      border-radius: 999px;
+      background: rgba(255,255,255,0.35);
+    }
+    .marina-composer textarea::-webkit-scrollbar-button { display: none; }
+    .marina-send-button {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      min-height: 40px; padding: 10px 18px;
+      border: none; border-radius: 9999px;
+      background: var(--marina-message-gradient);
+      color: white; font-size: 14px; cursor: pointer;
+      font-family: var(--text); flex-shrink: 0;
+      align-self: flex-end;
+    }
+    .marina-send-button:hover:not(:disabled) { opacity: .88; }
+    .marina-send-button:disabled { cursor: default; opacity: .45; }
+    .marina-send-button svg { width: 15px; height: 15px; }
+    .marina-composer-hint { margin-top: 7px; font-size: 11px; color: rgba(255,255,255,.3); text-align: center; }
+    .marina-composer-feedback { margin-top: 4px; font-size: 11px; color: rgba(255,255,255,.5); text-align: center; }
+    @keyframes fade-in-up {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .visual-card {
+      opacity: 0;
+      animation: fade-in-up 0.4s ease forwards;
+    }
+    .visuals-grid .visual-card:nth-child(1) { animation-delay: 0.05s; }
+    .visuals-grid .visual-card:nth-child(2) { animation-delay: 0.15s; }
+    .visuals-grid .visual-card:nth-child(3) { animation-delay: 0.25s; }
+    .visuals-grid .visual-card:nth-child(4) { animation-delay: 0.35s; }
+
+    /* Expandable panel */
+    .conversation { position: relative; }
+
+    /* Chat bubbles */
+    .message.user .message-bubble {
+      background: var(--marina-message-gradient);
+      color: #fff;
+    }
+
+    .nav-button {
+      position: relative;
+      overflow: visible;
+      border: 1px solid rgba(255,255,255,.24);
+      color: white;
+      background: linear-gradient(115deg, rgba(17,58,89,.82) 0%, rgba(55,115,160,.72) 72%, rgba(219,161,111,.5) 100%);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.15), 0 5px 14px rgba(19,54,80,.14);
+      text-shadow: 0 1px 1px rgba(12,36,54,.18);
+      transition: border-color 150ms ease, box-shadow 150ms ease, filter 150ms ease, transform 150ms ease;
+    }
+    .nav-button:hover {
+      border-color: rgba(255,255,255,.58);
+      color: white;
+      background: linear-gradient(135deg, #173f5f 0%, #4d8fc4 62%, #dba775 100%);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.22), 0 8px 20px rgba(19,54,80,.22);
+      filter: brightness(1.05);
+      transform: translateX(2px);
+    }
+    .nav-dot { display: none; }
+    .nav-button-icon {
+      width: 15px; height: 15px; flex-shrink: 0;
+      stroke: rgba(255,255,255,.82); fill: none; stroke-width: 1.5;
+    }
+    .nav-button:hover .nav-button-icon { stroke: white; }
+    .nav-tooltip {
+      display: none;
+      position: absolute;
+      left: calc(100% + 8px);
+      top: 50%; transform: translateY(-50%);
+      background: #1a2744; color: #fff;
+      font-size: 11px; padding: 7px 11px;
+      border-radius: 7px; z-index: 100;
+      pointer-events: none; line-height: 1.5;
+      width: 190px; white-space: normal;
+    }
+    .nav-tooltip::before {
+      content: '';
+      position: absolute;
+      right: 100%; top: 50%; transform: translateY(-50%);
+      border: 5px solid transparent;
+      border-right-color: #1a2744;
+    }
+    .nav-button:hover .nav-tooltip { display: block; }
+
+    .indicator-horizons-pills {
+      display: flex; flex-wrap: wrap; margin: 10px 0 9px;
+    }
+    .indicator-horizons-summary { font-size: 18px; line-height: 1.3; }
+    .horizon-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 5px 9px;
+      border: 1px solid #cfe0e2;
+      border-radius: 999px;
+      color: var(--chart-navy);
+      background: #f2f7f7;
+      font-size: 12px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+    .horizon-arrow { color: var(--chart-teal); font-size: 14px; }
+    .indicator-horizons-desc {
+      display: block; margin-top: 4px;
+      color: var(--muted-80); font-size: 12px; line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to the question</a>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Main navigation">
+      <div class="brand-head"><button class="collapse-button" id="sidebar-toggle" type="button" aria-label="Collapse navigation" aria-expanded="true">←</button></div>
+      <div class="brand-company"><img src="/static/logo-retail-analytics.svg" alt="Retail Analytics"></div>
+      <nav aria-label="Question topics">
+        <p class="nav-label">Analytics topics</p>
+        <ul class="nav-list">
+          <li>
+            <button class="nav-button" type="button" data-topic="architecture" data-q="How is the project architecture organized?" style="position:relative;">
+              <svg class="nav-button-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M7 9h10M7 13h6"/></svg>
+              Architecture
+              <div class="nav-tooltip">Explore the lakehouse layers, pipelines, and technology choices.</div>
+            </button>
+          </li>
+          <li>
+            <button class="nav-button" type="button" data-topic="forecasting" data-q="How does demand forecasting work?" style="position:relative;">
+              <svg class="nav-button-icon" viewBox="0 0 24 24" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              Demand forecasting
+              <div class="nav-tooltip">Explore the forecasting model, horizons, and predicted products.</div>
+            </button>
+          </li>
+          <li>
+            <button class="nav-button" type="button" data-topic="seasonality" data-q="How should I interpret the featured product's seasonality?" style="position:relative;">
+              <svg class="nav-button-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12 Q6 6 9 12 Q12 18 15 12 Q18 6 21 12"/></svg>
+              Seasonality
+              <div class="nav-tooltip">See which products show seasonal patterns and their peak and low months.</div>
+            </button>
+          </li>
+          <li>
+            <button class="nav-button" type="button" data-topic="growth" data-q="Which store had the largest forecast growth?" style="position:relative;">
+              <svg class="nav-button-icon" viewBox="0 0 24 24" aria-hidden="true"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+              Growth
+              <div class="nav-tooltip">Rank stores and distribution centers by forecast growth over the next 3 months.</div>
+            </button>
+          </li>
+          <li>
+            <button class="nav-button" type="button" data-topic="distribution" data-q="Should we open a new distribution center?" style="position:relative;">
+              <svg class="nav-button-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
+              Distribution centers
+              <div class="nav-tooltip">Explore feasibility analysis and distribution center recommendations by macro-region.</div>
+            </button>
+          </li>
+        </ul>
+        <button class="marina-launch-button" type="button" aria-label="Open Marina AI" data-open-marina><span class="marina-launch-avatar" aria-hidden="true"><img src="/static/marina-wave.png" alt="" width="36" height="36"></span><span class="marina-launch-copy"><span class="marina-launch-title">Marina AI</span><span class="marina-launch-subtitle">Ask about the data</span></span></button>
+      </nav>
+    </aside>
+
+    <main class="workspace" id="main">
+      <div class="workspace-inner">
+        <section class="starting" aria-labelledby="starting-title">
+          <header class="overview-header">
+            <div>
+              <p class="overview-eyebrow">Operational metrics</p>
+              <h1 class="section-label" id="starting-title">Overview</h1>
+            </div>
+          </header>
+          <div class="visuals-grid">
+            <article class="visual-card visual-card--forecast">
+              <header class="visual-card-header">
+                <div class="visual-card-heading"><h3>Monthly forecast for the entire network</h3><p class="visual-caption" id="forecast-scope">Loading forecast scope...</p></div>
+                <div class="forecast-summary"><span class="forecast-summary-label">Chart scope</span><strong class="indicator-result indicator-horizons-summary is-unavailable" id="indicator-horizons">Loading scope...</strong><span class="forecast-period-label" id="forecast-period-label">Monthly forecast — period</span><div class="indicator-horizons-pills" id="indicator-horizon-periods" hidden></div><ol class="forecast-reading" id="indicator-horizons-desc"><li>Each point is the monthly total across all locations in scope; it is not a value for one store or distribution center.</li><li>Values are monthly, not cumulative.</li><li>Read the months along the bottom, from left to right.</li><li>The number above each point is the total forecast for that month, in units.</li><li>A higher point indicates greater forecast demand.</li></ol></div>
+              </header>
+              <div id="forecast-visual" class="visual-state">Loading data...</div>
+            </article>
+            <article class="visual-card visual-card--seasonality"><h3>Seasonality</h3><p class="visual-caption">Monthly index: 1.0 is the historical average; higher values indicate more demand and lower values indicate less.</p><p class="visual-context"><span class="indicator-meta" id="indicator-cv">Month-to-month variation —</span><span class="seasonality-legend" aria-label="Color legend"><span class="seasonality-legend-item"><i class="seasonality-legend-swatch high"></i>Above average</span><span class="seasonality-legend-item"><i class="seasonality-legend-swatch low"></i>Below average</span><span class="seasonality-legend-item"><i class="seasonality-legend-swatch neutral"></i>Near average</span></span><strong class="indicator-result is-unavailable" id="indicator-product">Product data pending</strong><span class="seasonality-selection" id="indicator-seasonality-selection">Highlight criteria pending.</span></p><div id="seasonality-visual" class="visual-state">Loading data...</div></article>
+            <article class="visual-card visual-card--growth"><h3>Stores with the largest forecast increase</h3><p class="visual-caption" id="locations-caption">Increase in units: future forecast versus previous realized demand.</p><p class="visual-context">The comparison uses the same number of months in the future and in the past.</p><div id="locations-visual" class="visual-state">Loading data...</div></article>
+            <article class="visual-card visual-card--cd-growth"><h3>Distribution centers with the largest forecast increase</h3><p class="visual-caption" id="distribution-centers-caption">Increase in units: future forecast versus previous realized demand.</p><p class="visual-context">The comparison uses the same number of months in the future and in the past.</p><div id="distribution-centers-visual" class="visual-state">Loading data...</div></article>
+            <article class="visual-card visual-card--recommendation"><h3>Regions to assess for a new distribution center</h3><p class="visual-caption">Ranked by total forecast demand over the next 3 months; this is not an opening decision.</p><p class="visual-context">Each value is the total forecast demand for the period, in units.</p><div id="recommendations-visual" class="visual-state">Loading data...</div><a class="card-action" href="#main" data-q="Should we open a new distribution center?">Review recommendation →</a></article>
+          </div>
+        </section>
+      </div>
+
+      <div class="marina-modal-overlay" id="marina-modal-overlay" role="dialog" aria-labelledby="marina-modal-title" aria-modal="true" aria-busy="false">
+        <div class="marina-modal">
+          <div class="marina-modal-inner">
+            <div class="marina-modal-header">
+              <div class="marina-modal-header-row">
+                <button class="marina-modal-close" id="marina-modal-close" type="button" aria-label="Close">×</button>
+              </div>
+              <p class="marina-modal-title" id="marina-modal-title">Hi, I am <em>Marina AI</em>.</p>
+              <p class="marina-modal-desc">I can help interpret forecasts, explore the data, and explain project decisions.</p>
+            </div>
+            <div class="marina-chat-log" id="messages" role="log" aria-live="polite" aria-label="Conversation messages"></div>
+            <div class="marina-composer-wrap">
+              <form class="marina-composer" id="composer">
+                <label class="sr-only" for="question">Your question about Retail Analytics</label>
+                <textarea id="question" name="question" rows="1" maxlength="2400" placeholder="What would you like to know?" autocomplete="off" enterkeyhint="send" required></textarea>
+                <button class="marina-send-button" id="send" type="submit" disabled>
+                  <span class="send-label">Send</span>
+                  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M3 10h13M10 4l6 6-6 6"/></svg>
+                </button>
+              </form>
+              <p class="marina-composer-hint">Press Enter to send · Shift+Enter for a new line</p>
+              <p class="marina-composer-feedback" id="composer-feedback" role="status"></p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+  </div>
+  <button class="sidebar-open" id="sidebar-open" type="button" aria-label="Open navigation" aria-expanded="false">→</button>
+  <template id="message-template"><article class="message"><span class="message-avatar" aria-hidden="true"><img alt="" width="42" height="42"></span><div class="message-main"><p class="message-author"></p><div class="message-bubble"><div class="message-content"></div><ul class="message-sources" aria-label="Answer sources"></ul></div></div></article></template>
+  <script>
+    (() => {
+      "use strict";
+      const app = document.querySelector(".app-shell"), sidebarToggle = document.getElementById("sidebar-toggle"), sidebarOpen = document.getElementById("sidebar-open");
+      const modalOverlay = document.getElementById("marina-modal-overlay"),
+            modal         = modalOverlay.querySelector(".marina-modal"),
+            modalClose   = document.getElementById("marina-modal-close"),
+            question     = document.getElementById("question"),
+            send         = document.getElementById("send"),
+            composer     = document.getElementById("composer"),
+            messages     = document.getElementById("messages"),
+            feedback     = document.getElementById("composer-feedback"),
+            template     = document.getElementById("message-template");
+      const marinaAvatars = {
+        answered: "/static/marina-answer-ok.png",
+        no_context: "/static/marina-no-answer.png",
+        refused: "/static/marina-no-answer.png",
+        unavailable: "/static/marina-no-answer.png"
+      };
+      let isSubmitting = false, lastFocusedElement = null;
+      function setSidebarOpen(open) { app.classList.toggle("sidebar-collapsed", !open); sidebarToggle.setAttribute("aria-expanded", String(open)); sidebarToggle.setAttribute("aria-label", open ? "Collapse navigation" : "Open navigation"); sidebarOpen.hidden = open; try { localStorage.setItem("marina-sidebar-open", String(open)); } catch {} }
+      sidebarToggle.addEventListener("click", () => setSidebarOpen(false)); sidebarOpen.addEventListener("click", () => setSidebarOpen(true));
+      try { if (localStorage.getItem("marina-sidebar-open") === "false") setSidebarOpen(false); } catch {}
+      function setModalBackgroundInert(inert) {
+        document.querySelector(".sidebar").inert = inert;
+        document.querySelector(".workspace-inner").inert = inert;
+        sidebarOpen.inert = inert;
+      }
+      function openModal() {
+        lastFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        modalOverlay.classList.add("open");
+        document.body.classList.add("marina-modal-open");
+        setModalBackgroundInert(true);
+        requestAnimationFrame(() => {
+          if (modalOverlay.classList.contains("open")) question.focus({ preventScroll: true });
+        });
+      }
+      function closeModal() {
+        modalOverlay.classList.remove("open");
+        document.body.classList.remove("marina-modal-open");
+        setModalBackgroundInert(false);
+        if (lastFocusedElement?.isConnected) lastFocusedElement.focus({ preventScroll: true });
+      }
+      document.querySelectorAll("[data-open-marina]").forEach(button => button.addEventListener("click", openModal));
+      modalClose.addEventListener("click", closeModal);
+      modalOverlay.addEventListener("click", e => {
+        if (e.target === modalOverlay) closeModal();
+      });
+      document.addEventListener("keydown", event => {
+        if (!modalOverlay.classList.contains("open")) return;
+        if (event.key === "Escape") {
+          event.preventDefault();
+          closeModal();
+          return;
+        }
+        if (event.key !== "Tab") return;
+        const focusable = [...modal.querySelectorAll('button:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])')];
+        if (!focusable.length) return;
+        const first = focusable[0], last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      });
+      function updateComposer() {
+        const minHeight = 56, maxHeight = 140;
+        question.style.height = "auto";
+        question.style.height = Math.min(Math.max(question.scrollHeight, minHeight), maxHeight) + "px";
+        question.style.overflowY = question.scrollHeight > maxHeight ? "auto" : "hidden";
+        send.disabled = isSubmitting || !question.value.trim();
+      }
+      const numberFormat = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
+      const wholeNumberFormat = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+      function formatNumber(value) { return value == null ? "—" : numberFormat.format(Number(value)); }
+      function formatWholeNumber(value) { return value == null ? "—" : wholeNumberFormat.format(Number(value)); }
+      function escapeHtml(value) { return String(value ?? "—").replace(/[&<>"']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character])); }
+      const shortMonthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      function formatPeriod(value) {
+        const match = String(value || "").match(/^(\d{4})-(\d{2})/);
+        if (!match) return value;
+        return `${shortMonthNames[Number(match[2]) - 1]}/${match[1].slice(-2)}`;
+      }
+      function parsePeriod(value) {
+        const match = String(value || "").match(/^(\d{4})-(\d{2})/);
+        return match ? { year: Number(match[1]), month: Number(match[2]) } : null;
+      }
+      function formatPeriodRange(start, end) {
+        const first = `${shortMonthNames[start.month - 1]}/${String(start.year).slice(-2)}`;
+        const last = `${shortMonthNames[end.month - 1]}/${String(end.year).slice(-2)}`;
+        if (start.year !== end.year) return `${first}–${last}`;
+        return start.month === end.month ? first : `${shortMonthNames[start.month - 1]}–${last}`;
+      }
+      function setGrowthCaption(elementId, rankedRows, noun) {
+        const element = document.getElementById(elementId);
+        const periodSource = rankedRows[0];
+        const forecastStart = parsePeriod(periodSource?.forecast_start_month);
+        const forecastEnd = parsePeriod(periodSource?.forecast_end_month);
+        const actualStart = parsePeriod(periodSource?.actual_start_month);
+        const actualEnd = parsePeriod(periodSource?.actual_end_month);
+        if (!rankedRows.length || !forecastStart || !forecastEnd || !actualStart || !actualEnd) {
+          element.textContent = "Comparison period unavailable.";
+          return;
+        }
+        const future = formatPeriodRange(forecastStart, forecastEnd);
+        const past = formatPeriodRange(actualStart, actualEnd);
+        element.textContent = `${rankedRows.length} ${noun} ranked — increase in units: forecast for ${future} versus realized demand for ${past}.`;
+      }
+      function formatSeasonalityVariation(value) {
+        if (value == null || Number.isNaN(Number(value))) return "Month-to-month variation unavailable.";
+        return `Month-to-month variation: index ${formatNumber(value)}. A higher index indicates a larger demand difference between months.`;
+      }
+      function forecastScopeDetails(forecast) {
+        const locations = Number(forecast?.location_count);
+        const stores = Number(forecast?.store_count);
+        const distributionCenters = Number(forecast?.distribution_center_count);
+        if (locations > 0 && stores >= 0 && distributionCenters >= 0) {
+          const locationLabel = locations === 1 ? "location" : "locations";
+          const storeLabel = stores === 1 ? "store" : "stores";
+          const centerLabel = distributionCenters === 1 ? "CD" : "distribution centers";
+          return {
+            title: `Entire network: ${locations} ${locationLabel}`,
+            caption: `Each point is the monthly forecast total for ${locations} ${locationLabel} across the network (${stores} ${storeLabel} e ${distributionCenters} ${centerLabel}). It is not a location-level forecast, is not cumulative, and is not revenue.`,
+            instruction: `Each point totals ${locations} ${locationLabel} across the network; it does not represent one store or distribution center.`,
+          };
+        }
+        return {
+          title: "Entire network within model scope",
+          caption: "Each point is the monthly forecast total for the network within the model scope. It is not a location-level forecast, is not cumulative, and is not revenue.",
+          instruction: "Each point totals network locations within the model scope; it does not represent one store or distribution center.",
+        };
+      }
+      function renderForecastScope(forecast) {
+        const details = forecastScopeDetails(forecast);
+        document.getElementById("forecast-scope").textContent = details.caption;
+        return details;
+      }
+      function setIndicatorResult(id, text, available) {
+        const element = document.getElementById(id);
+        element.textContent = text;
+        element.classList.toggle("is-unavailable", !available);
+      }
+      function setForecastIndicatorUnavailable() {
+        setIndicatorResult("indicator-horizons", "Scope unavailable", false);
+        document.getElementById("forecast-period-label").textContent = "Monthly forecast — period unavailable";
+        const periodsElement = document.getElementById("indicator-horizon-periods");
+        periodsElement.replaceChildren();
+        periodsElement.hidden = true;
+        document.getElementById("forecast-scope").textContent = "Could not load the forecast scope.";
+        document.getElementById("indicator-horizons-desc").innerHTML = "<li>Could not load the forecast period and totals.</li>";
+      }
+      function renderForecastIndicator(forecast) {
+        const periods = [...new Set((forecast?.series || []).map(row => row.period).filter(Boolean))];
+        if (!periods.length) {
+          setForecastIndicatorUnavailable();
+          return;
+        }
+        const scope = renderForecastScope(forecast);
+        setIndicatorResult("indicator-horizons", scope.title, true);
+        document.getElementById("forecast-period-label").textContent = periods.length === 1
+          ? "Monthly forecast — 1 month"
+          : `Monthly forecast — ${periods.length} months`;
+        const periodsElement = document.getElementById("indicator-horizon-periods");
+        const firstPeriod = escapeHtml(formatPeriod(periods[0]));
+        const lastPeriod = escapeHtml(formatPeriod(periods[periods.length - 1]));
+        periodsElement.innerHTML = periods.length === 1
+          ? `<span class="horizon-pill">${firstPeriod}</span>`
+          : `<span class="horizon-pill"><span>${firstPeriod}</span><span class="horizon-arrow" aria-hidden="true">→</span><span>${lastPeriod}</span></span>`;
+        periodsElement.hidden = false;
+        const forecastReading = document.getElementById("indicator-horizons-desc");
+        forecastReading.innerHTML = `<li>${escapeHtml(scope.instruction)}</li><li>Values are monthly, not cumulative.</li><li>Read the months along the bottom, from left to right.</li><li>The number above each point is the total forecast for that month, in units.</li>${periods.length > 1 ? "<li>A higher point indicates greater forecast demand.</li>" : ""}`;
+      }
+      function renderForecastChart(rows) {
+        const element = document.getElementById("forecast-visual"), series = (rows || []).slice(0, 6);
+        if (!series.length) { element.textContent = "No data available."; return; }
+        const values = series.map(row => Number(row.demand_qty) || 0), min = Math.min(...values), max = Math.max(...values), range = max - min || 1;
+        const chartWidth = Math.max(308, Math.min(Math.round(element.getBoundingClientRect().width || 308), 720));
+        const left = 30, right = chartWidth - 30, top = 24, bottom = 82, step = series.length === 1 ? 0 : (right - left) / (series.length - 1);
+        const points = values.map((value, index) => ({ x: series.length === 1 ? (left + right) / 2 : left + step * index, y: top + ((max - value) / range) * (bottom - top) }));
+        const pointMarkup = points.map((point, index) => `<g><text class="chart-value${index === points.length - 1 ? " chart-value-latest" : ""}" x="${point.x}" y="${Math.max(point.y - 10, 12)}">${escapeHtml(formatWholeNumber(values[index]))} un.</text><circle class="chart-point${index === points.length - 1 ? " chart-point-latest" : ""}" cx="${point.x}" cy="${point.y}" r="${index === points.length - 1 ? 4.5 : 3.5}"></circle><text class="chart-label" x="${point.x}" y="108">${escapeHtml(formatPeriod(series[index].period))}</text></g>`).join("");
+        const areaPoints = `${points[0].x},94 ${points.map(point => `${point.x},${point.y}`).join(" ")} ${points[points.length - 1].x},94`;
+        const accessibleSummary = series.map((row, index) => `${formatPeriod(row.period)}: ${formatWholeNumber(values[index])} units`).join(", ");
+        element.innerHTML = `<svg class="metric-chart" viewBox="0 0 ${chartWidth} 116" role="img" aria-label="Monthly forecast for the entire network: ${escapeHtml(accessibleSummary)}"><defs><linearGradient id="forecast-area-gradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#287a78" stop-opacity=".22"></stop><stop offset="100%" stop-color="#287a78" stop-opacity=".02"></stop></linearGradient></defs><line class="chart-axis" x1="4" y1="94" x2="${chartWidth - 4}" y2="94"></line><polygon class="forecast-area" points="${areaPoints}"></polygon><polyline class="chart-line" points="${points.map(point => `${point.x},${point.y}`).join(" ")}"></polyline>${pointMarkup}</svg>`;
+      }
+      function renderSeasonalityChart(rows) {
+        const element = document.getElementById("seasonality-visual"), series = (rows || []).slice(0, 12);
+        if (!series.length) { element.textContent = "No data available."; return; }
+        const values = series.map(row => Number(row.seasonality_index) || 0), min = Math.min(...values, 1), max = Math.max(...values, 1), range = max - min || 1;
+        const left = 28, right = 302, top = 14, bottom = 84, slot = (right - left) / series.length, barWidth = Math.min(slot * .56, 14);
+        const y = value => top + ((max - value) / range) * (bottom - top), baseline = y(1);
+        const bars = series.map((row, index) => { const value = values[index], barY = Math.min(y(value), baseline), height = Math.max(Math.abs(y(value) - baseline), 2), className = Math.abs(value - 1) < .05 ? "seasonality-bar-neutral" : value > 1 ? "seasonality-bar-high" : "seasonality-bar-low", x = left + slot * index + (slot - barWidth) / 2; return `<rect class="${className}" x="${x}" y="${barY}" width="${barWidth}" height="${height}" rx="2"></rect>`; }).join("");
+        const monthLabels = series.map((row, index) => { const month = Number(row.month_number), show = month === 1 || month === 4 || month === 7 || month === 12; return show ? `<text class="chart-label" x="${left + slot * index + slot / 2}" y="108">${shortMonthNames[month - 1]}</text>` : ""; }).join("");
+        const accessibleSummary = series.map((row, index) => `month ${row.month_number}: ${formatNumber(values[index])}`).join(", ");
+        element.innerHTML = `<svg class="metric-chart" viewBox="0 0 308 116" role="img" aria-label="Seasonality indices, with a 1.0 baseline: ${escapeHtml(accessibleSummary)}"><text class="chart-baseline-label" x="24" y="${baseline + 3}">1.0</text><line class="chart-axis" x1="${left}" y1="${baseline}" x2="${right}" y2="${baseline}"></line>${bars}${monthLabels}</svg>`;
+      }
+      function renderGrowth(rows, elementId) {
+        const element = document.getElementById(elementId), ranked = [...(rows || [])].sort((first, second) => Number(second.growth_abs_qty || 0) - Number(first.growth_abs_qty || 0)).slice(0, 5);
+        if (!ranked.length) { element.textContent = "No data available."; return ranked; }
+        const max = Math.max(...ranked.map(row => Number(row.growth_abs_qty) || 0), 1);
+        element.innerHTML = `<div class="growth-list" role="list">${ranked.map((row, index) => `<div class="growth-row" role="listitem"><span class="growth-rank">${index + 1}.</span><span class="growth-label" title="${escapeHtml(row.location_name)}">${escapeHtml(row.location_name)}</span><span class="growth-track" aria-hidden="true"><span class="growth-fill" style="width:${Math.max((Number(row.growth_abs_qty) || 0) / max * 100, 1)}%"></span></span><span class="growth-value">${escapeHtml(formatWholeNumber(row.growth_abs_qty))}</span></div>`).join("")}</div>`;
+        return ranked;
+      }
+      function renderRecommendations(rows) {
+        const element = document.getElementById("recommendations-visual");
+        if (!rows || !rows.length) { element.textContent = "No data available."; return; }
+        const ranked = rows.filter(row => row.candidate_rank != null).sort((first, second) => Number(first.candidate_rank) - Number(second.candidate_rank)).slice(0, 5);
+        element.innerHTML = `<ol class="recommendation-list">${ranked.map(row => `<li><span class="recommendation-rank">${escapeHtml(row.candidate_rank)}</span><span class="recommendation-region">${escapeHtml(row.macro_region)}</span><strong>${escapeHtml(formatWholeNumber(row.forecast_next_3m_demand_qty))} units forecast</strong></li>`).join("")}</ol>`;
+      }
+      async function loadVisuals() {
+        try {
+          const response = await fetch("/api/visuals");
+          const payload = await response.json();
+          if (!response.ok || payload.status !== "ready") throw new Error(payload.error || "Metrics unavailable.");
+          renderForecastChart(payload.forecast.series);
+          renderForecastIndicator(payload.forecast);
+          renderSeasonalityChart(payload.seasonality.series);
+          const rankedLocations = renderGrowth(payload.locations, "locations-visual");
+          const rankedDistributionCenters = renderGrowth(payload.distribution_centers, "distribution-centers-visual");
+          setGrowthCaption("locations-caption", rankedLocations, "stores");
+          setGrowthCaption("distribution-centers-caption", rankedDistributionCenters, "distribution centers");
+          renderRecommendations(payload.recommendations);
+          const hasSeasonality = Boolean(payload.seasonality?.series?.length && payload.seasonality.product_id != null);
+          const productLabel = hasSeasonality && payload.seasonality.product_name
+            ? `${payload.seasonality.product_name} (product ${payload.seasonality.product_id})`
+            : hasSeasonality ? `Product ${payload.seasonality.product_id}` : "Product unavailable";
+          setIndicatorResult("indicator-product", productLabel, hasSeasonality);
+          document.getElementById("indicator-cv").textContent = formatSeasonalityVariation(payload.seasonality?.cv);
+          document.getElementById("indicator-seasonality-selection").textContent = hasSeasonality
+            ? payload.seasonality.selection_description || "Featured product selected automatically."
+            : "Highlight criteria unavailable.";
+        } catch (error) {
+          ["forecast-visual", "seasonality-visual", "locations-visual", "distribution-centers-visual", "recommendations-visual"].forEach(id => { document.getElementById(id).textContent = "Metrics are currently unavailable."; });
+          setForecastIndicatorUnavailable();
+          setIndicatorResult("indicator-product", "Product unavailable", false);
+          document.getElementById("indicator-cv").textContent = "Month-to-month variation unavailable.";
+          document.getElementById("indicator-seasonality-selection").textContent = "Highlight criteria unavailable.";
+          document.getElementById("locations-caption").textContent = "Comparison period unavailable.";
+          document.getElementById("distribution-centers-caption").textContent = "Comparison period unavailable.";
+        }
+      }
+      function scrollMessagesToBottom() { requestAnimationFrame(() => { messages.scrollTop = messages.scrollHeight; }); }
+      function addMessage(author, text, user = false, sources = [], status = "answered") { const fragment = template.content.cloneNode(true), article = fragment.querySelector("article"), avatar = fragment.querySelector(".message-avatar"), sourceList = fragment.querySelector(".message-sources"); if (user) { article.classList.add("user"); avatar.remove(); } else { article.classList.add("marina"); article.dataset.status = status; avatar.querySelector("img").src = marinaAvatars[status] || marinaAvatars.unavailable; } fragment.querySelector(".message-author").textContent = author; fragment.querySelector(".message-content").textContent = text; sources.forEach(source => { const item = document.createElement("li"); item.textContent = source; sourceList.appendChild(item); }); sourceList.hidden = sources.length === 0; messages.appendChild(fragment); scrollMessagesToBottom(); }
+      async function ask(text) { const clean = text.trim(); if (!clean || isSubmitting) return; isSubmitting = true; modalOverlay.setAttribute("aria-busy", "true"); question.readOnly = true; updateComposer(); feedback.textContent = ""; addMessage("You", clean, true); const typingEl = document.createElement("div"); typingEl.className = "typing-message"; typingEl.innerHTML = '<span class="message-avatar" aria-hidden="true"><img src="/static/marina-thinking.png" alt="" width="42" height="42"></span><div class="typing-indicator" aria-hidden="true"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div>'; typingEl.setAttribute("role", "status"); typingEl.setAttribute("aria-label", "Marina is thinking"); messages.appendChild(typingEl); scrollMessagesToBottom(); try { const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: clean }) }); const payload = await response.json(); if (!response.ok) throw new Error(payload.error || "Could not send the question."); typingEl.remove(); addMessage("Marina", payload.answer || "I could not find an answer to that question.", false, payload.sources || [], payload.status); } catch (error) { typingEl.remove(); addMessage("Marina", error.message || "The query service is unavailable.", false, [], "unavailable"); } finally { isSubmitting = false; modalOverlay.setAttribute("aria-busy", "false"); question.readOnly = false; updateComposer(); if (question.value.trim()) feedback.textContent = "Question filled in. Review it and select Send."; if (modalOverlay.classList.contains("open")) question.focus({ preventScroll: true }); } }
+      composer.addEventListener("submit", event => { event.preventDefault(); if (isSubmitting) { feedback.textContent = "Wait for the current answer before sending another question."; return; } const value = question.value; if (!value.trim()) { feedback.textContent = "Enter a question to continue."; question.focus(); return; } question.value = ""; updateComposer(); ask(value); });
+      question.addEventListener("input", () => { updateComposer(); feedback.textContent = ""; }); question.addEventListener("keydown", event => { if (event.key === "Enter" && !event.shiftKey && !event.isComposing) { event.preventDefault(); if (question.value.trim() && !isSubmitting) composer.requestSubmit(); } });
+      document.querySelectorAll("[data-q]").forEach(button => button.addEventListener("click", event => { event.preventDefault(); question.value = button.dataset.q; updateComposer(); openModal(); question.focus({ preventScroll: true }); feedback.textContent = isSubmitting ? "Question filled in. Wait for the current answer before sending." : "Question filled in. Review it and select Send."; }));
+      updateComposer();
+      loadVisuals();
+    })();
+  </script>
+</body>
+</html>

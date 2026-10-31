@@ -1,0 +1,926 @@
+version: 2
+
+models:
+  - name: dim_supplier
+    description: >
+      Supplier dimension. Grain: one row per supplier_id. average_lead_time_days
+      is the average time, in days, between purchase order creation
+      (stg_purchase_orders.created_at) and goods receipt
+      (stg_goods_receipts.received_at), calculated from all purchase orders
+      received from the supplier. Suppliers with no associated receipts have a
+      null average_lead_time_days.
+    columns:
+      - name: supplier_key
+        description: "Surrogate key for this supplier."
+        tests:
+          - unique
+          - not_null
+      - name: supplier_id
+        description: "Supplier business identifier."
+        tests:
+          - unique
+          - not_null
+      - name: legal_name
+        description: "Legal name of the supplier."
+      - name: trade_name
+        description: "Trade name of the supplier."
+      - name: country
+        description: "Country of the supplier."
+      - name: tax_id
+        description: "Supplier tax identification document (e.g., CNPJ)."
+      - name: tax_id_type
+        description: "Type of tax document provided in tax_id."
+      - name: email
+        description: "Supplier contact email."
+      - name: phone
+        description: "Supplier contact phone number."
+      - name: contact_name
+        description: "Supplier contact person's name."
+      - name: is_active
+        description: "Indicates whether the supplier is active."
+      - name: average_lead_time_days
+        description: "Average time, in days, between purchase order creation and goods receipt. Null if the supplier has never had a receipt."
+
+  - name: dim_employee
+    description: >
+      Salesperson and employee dimension, including the special record
+      employee_key = -1 for e-commerce sales without a human salesperson.
+    columns:
+      - name: employee_key
+        description: "Surrogate key. -1 = e-commerce."
+        tests:
+          - unique
+          - not_null
+      - name: employee_id
+        description: "Employee business identifier. -1 = e-commerce."
+      - name: employee_name
+        description: "Employee name or 'E-commerce (Self-Service)'."
+      - name: role
+        description: "Employee job title."
+      - name: location_id
+        description: "Employee's primary location."
+      - name: hire_date
+        description: "Hire date."
+      - name: is_active_flag
+        description: "Indicates whether the employee is active."
+
+  - name: dim_customer
+    description: >
+      Customer dimension. Grain: one row per customer_id, with omnichannel flags
+      calculated from actual sales channels (POS/e-commerce) in stg_orders.
+    columns:
+      - name: customer_key
+        description: "Surrogate key for this customer."
+        tests:
+          - unique
+          - not_null
+      - name: customer_id
+        description: "Customer business identifier."
+        tests:
+          - unique
+          - not_null
+      - name: person_type
+        description: "Customer type (individual or company; PF or PJ)."
+      - name: customer_name
+        description: "Customer's legal name."
+      - name: trade_name
+        description: "Trade name of the customer."
+      - name: email_hash
+        description: "SHA-256 hash of the email address (LGPD)."
+      - name: city
+        description: "City from the customer's primary address."
+      - name: state
+        description: "State from the customer's primary address."
+      - name: country
+        description: "Country from the customer's primary address."
+      - name: is_active_flag
+        description: "Indicates whether the customer is active."
+      - name: has_instore_purchase
+        description: "1 if the customer has purchased through the POS (physical store) channel."
+      - name: has_ecommerce_purchase
+        description: "1 if the customer has purchased through the e-commerce channel."
+      - name: is_omnichannel
+        description: "True if the customer has purchased through both POS and e-commerce channels."
+
+  - name: fct_sales
+    description: >
+      Sales fact. Grain: one row per sold order item (order_item_id).
+      gross_revenue is calculated as line_total net of ICMS/IPI;
+      net_revenue comes from payment reconciliation (int_payment_reconciliation).
+    columns:
+      - name: sales_key
+        description: "Surrogate key for this fact row."
+        tests:
+          - unique
+          - not_null
+      - name: order_item_id
+        description: "Item of order of source."
+      - name: order_id
+        description: "Source order identifier."
+      - name: customer_key
+        description: "Surrogate key of the customer (links a dim_customer)."
+        tests:
+          - relationships:
+              arguments:
+                to: ref('dim_customer')
+                field: customer_key
+      - name: employee_key
+        description: "Surrogate key of the salesperson (-1 = e-commerce; links to dim_employee)."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_employee')
+                field: employee_key
+      - name: product_variant_id
+        description: "Sold product variant."
+      - name: date_key
+        description: "Date of the order."
+      - name: channel
+        description: "Channel of sale (POS or ecommerce)."
+      - name: order_status
+        description: "Status of the order."
+      - name: quantity_qty
+        description: "Quantity sold."
+      - name: unit_price
+        description: "Unit price."
+      - name: icms_rate
+        description: "Applied ICMS tax rate."
+      - name: ipi_rate
+        description: "Applied IPI tax rate."
+      - name: line_total
+        description: "Total order-item amount, calculated in the source."
+      - name: discount_amount
+        description: "Discount applied to the order (order-level; not allocated to individual items)."
+      - name: gross_revenue
+        description: "Gross revenue: line_total net of ICMS/IPI."
+      - name: net_revenue
+        description: "Net revenue for the order (from int_payment_reconciliation)."
+
+  - name: fct_returns
+    description: >
+      Return fact. Grain: one row per returned item (return_item_id).
+    columns:
+      - name: returns_key
+        description: "Surrogate key for this fact row."
+        tests:
+          - unique
+          - not_null
+      - name: return_item_id
+        description: "Source return item."
+      - name: return_id
+        description: "Return of source."
+      - name: order_id
+        description: "Order related to the return."
+      - name: product_variant_id
+        description: "Returned product variant (via order_item_id)."
+      - name: date_key
+        description: "Date of the return."
+      - name: return_reason_class
+        description: "Root-cause class for the return (assigned by the macro)."
+      - name: return_action
+        description: "Action taken (e.g., refund or exchange)."
+      - name: quantity_returned_qty
+        description: "Quantity returned."
+      - name: unit_refund_amount
+        description: "Refund amount per unit."
+      - name: return_amount
+        description: "Total returned amount."
+  - name: fct_return_transactions
+    description: >
+      Return transaction fact. Grain: one row per return_id.
+      Gold source for return statuses, dates, amounts, quantities, and
+      reconciliation. Complements fct_returns, which remains at the returned-item grain.
+    columns:
+      - name: return_key
+        description: "Surrogate key of the return."
+        tests:
+          - unique
+          - not_null
+
+      - name: return_id
+        description: "Unique return identifier in the source."
+        tests:
+          - unique
+          - not_null
+
+      - name: return_number
+        description: "Return number."
+
+      - name: order_id
+        description: "Order related to the return."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('fct_orders')
+                field: order_id
+
+      - name: order_number
+        description: "Number of the order related to the return."
+
+      - name: customer_key
+        description: "Surrogate key of the customer."
+        tests:
+          - relationships:
+              arguments:
+                to: ref('dim_customer')
+                field: customer_key
+
+      - name: location_key
+        description: >
+          Surrogate key of the operating location associated with the order.
+        tests:
+          - relationships:
+              arguments:
+                to: ref('dim_location')
+                field: location_key
+
+      - name: received_at_location_key
+        description: >
+          Location key where the return was received. Treat as a separate
+          role-playing dimension in the semantic model.
+        tests:
+          - relationships:
+              arguments:
+                to: ref('dim_location')
+                field: location_key
+
+      - name: date_key
+        description: "Date dimension key for the return."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key
+
+      - name: returned_date
+        description: "Date the return was recorded."
+
+      - name: returned_at
+        description: "Date and time the return was recorded."
+        tests:
+          - not_null
+
+      - name: order_date
+        description: "Date the related order was placed."
+
+      - name: order_channel
+        description: "Channel of the order related to the return."
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['ecommerce', 'pos']
+
+      - name: order_status
+        description: "Current status of the order related to the return."
+
+      - name: return_status
+        description: "Status of the return."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['cancelled', 'completed', 'open']
+
+      - name: return_reason
+        description: "Reason provided for the return."
+
+      - name: return_reason_class
+        description: "Standardized class for the return reason."
+        tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - consumer_behavior
+                  - operational_failure
+                  - information_mismatch
+                  - unclassified
+
+      - name: total_refund_amount
+        description: "Total amount recorded in the return header."
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: ">= 0"
+
+      - name: return_items_count
+        description: "Number of item rows in the return."
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: ">= 0"
+
+      - name: total_quantity_returned_qty
+        description: "Total quantity of returned units."
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: ">= 0"
+
+      - name: total_items_refund_amount
+        description: "Sum of the amounts for the return items."
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: ">= 0"
+
+      - name: refund_reconciliation_difference
+        description: >
+          Difference between the header amount and the sum of the item amounts.
+          The expected amount is zero, within the tolerance validated by the singular test.
+        tests:
+          - not_null
+
+      - name: has_refund_action
+        description: "Indicates whether the return contains a refunded item."
+        tests:
+          - not_null
+
+      - name: has_exchange_action
+        description: "Indicates whether the return contains an exchanged item."
+        tests:
+          - not_null
+
+      - name: has_mixed_actions
+        description: >
+          Indicates whether a return contains both exchanged and refunded items.
+        tests:
+          - not_null
+
+  - name: dim_product
+    description: >
+      Product dimension. Grain: one row per product_variant_id.
+      Flattened category hierarchy (category_name + parent_category_name).
+    columns:
+      - name: product_key
+        description: "Product surrogate key."
+        tests:
+          - unique
+          - not_null
+      - name: product_variant_id
+        description: "Product variant identifier (dimension grain)."
+        tests:
+          - unique
+          - not_null
+      - name: product_id
+        description: "Parent product identifier."
+      - name: sku
+        description: "Unique inventory code for the variant."
+        tests:
+          - not_null
+      - name: barcode_ean
+        description: "EAN barcode for the variant."
+      - name: product_name
+        description: "Name of the product."
+      - name: brand_id
+        description: "Brand identifier."
+      - name: brand_name
+        description: "Brand name."
+      - name: category_id
+        description: "Category identifier."
+      - name: category_name
+        description: "Category name for the variant."
+      - name: parent_category_name
+        description: "Parent category name (flattened hierarchy via self-join)."
+      - name: ncm_code
+        description: "Product tax classification code (NCM)."
+      - name: unit_of_measure
+        description: "Unit of measure (e.g., UN, KG)."
+      - name: sale_price_amount
+        description: "Variant sale price."
+      - name: cost_price_amount
+        description: "Variant cost price."
+      - name: weight_kg
+        description: "Variant weight in kilograms."
+      - name: icms_rate
+        description: "Applied ICMS tax rate."
+      - name: ipi_rate
+        description: "Applied IPI tax rate."
+      - name: is_active_flag
+        description: "Indicates whether the variant is active."
+      - name: created_at
+        description: "Record creation date."
+      - name: updated_at
+        description: "Date of the last record update."
+
+  - name: dim_date
+    description: >
+      Date spine from 2020-01-01 through 2027-12-31, with time attributes
+      and the is_covid_period flag (2020-2021) generated by flag_covid_period().
+    columns:
+      - name: date_key
+        description: "Numeric surrogate key in YYYYMMDD format (e.g., 20200601)."
+        tests:
+          - unique
+          - not_null
+      - name: full_date
+        description: "Date completa (type date)."
+        tests:
+          - unique
+          - not_null
+      - name: year_number
+        description: "Year (e.g., 2020)."
+      - name: quarter_number
+        description: "Quarter of the year (1-4)."
+      - name: month_number
+        description: "Month of the year (1-12)."
+      - name: day_of_month
+        description: "Day of the month (1-31)."
+      - name: day_of_week
+        description: "Day of the week (1 = Sunday, 7 = Saturday)."
+      - name: week_of_year
+        description: "Week of the year (1-53)."
+      - name: is_covid_period
+        description: "True for dates between 2020-01-01 and 2021-12-31 (generated by the flag_covid_period macro)."
+        tests:
+          - not_null
+
+  - name: dim_location
+    description: "Dimension of company locations."
+    columns:
+      - name: location_key
+        description: "Surrogate key of the location."
+        tests:
+          - unique
+          - not_null
+
+      - name: location_id
+        description: "Natural location identifier."
+        tests:
+          - not_null
+
+      - name: location_name
+        description: "Name of the location."
+
+      - name: location_type
+        description: "Type of the location."
+
+      - name: city
+        description: "City."
+
+      - name: state
+        description: "State."
+
+      - name: country
+        description: "Country."
+
+      - name: is_active_flag
+        description: "Indicates whether the location is active."
+
+  - name: fct_stock_movements
+    description: >
+      Inventory movement fact. Grain: one record per inventory movement
+      (stock_movement_id). quantity_moved_qty has the correct sign in the source:
+      positive for inbound movements (purchase_in, return_in) and negative for
+      outbound movements (sale_out, return_out).
+    columns:
+      - name: stock_movement_key
+        description: "Surrogate key for this fact row."
+        tests:
+          - unique
+          - not_null
+      - name: stock_movement_id
+        description: "Movement business identifier."
+      - name: product_key
+        description: "Surrogate key of the product (links a dim_product)."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_product')
+                field: product_key
+      - name: location_key
+        description: "Surrogate key of the location (links a dim_location)."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_location')
+                field: location_key
+      - name: date_key
+        description: "Surrogate key of the date of the movement (links a dim_date)."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key
+      - name: movement_type
+        description: "Movement type (e.g., purchase_in, sale_out, return_in, return_out)."
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['purchase_in', 'return_in', 'return_out', 'sale_out']
+      - name: quantity_moved_qty
+        description: "Movement quantity. Positive = inbound; negative = outbound."
+      - name: reference_table
+        description: "Table of source that gerou a movement."
+      - name: reference_id
+        description: "Identifier of the source record in reference_table."
+      - name: employee_id
+        description: "Employee responsible for the movement."
+      - name: notes
+        description: "Additional notes about the movement."
+      - name: occurred_at
+        description: "Date/time in that a movement efetivamente ocorreu."
+      - name: created_at
+        description: "Date and time the record was created."
+
+  - name: fct_purchases
+    description: >
+      Purchase fact. Grain: one record per item received in a goods receipt
+      (goods_receipt_item_id). total_cost_brl = quantity_received_qty * unit_cost_brl.
+    columns:
+      - name: purchase_key
+        description: "Surrogate key for this fact row."
+        tests:
+          - unique
+          - not_null
+      - name: goods_receipt_item_id
+        description: "Item received of source."
+      - name: goods_receipt_id
+        description: "Source goods receipt."
+      - name: purchase_order_id
+        description: "Order of purchase of source."
+      - name: supplier_id
+        description: "Supplier for the purchase order."
+      - name: supplier_key
+        description: "Surrogate key of the supplier (links a dim_supplier)."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_supplier')
+                field: supplier_key
+      - name: product_key
+        description: "Surrogate key of the product (links a dim_product)."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_product')
+                field: product_key
+      - name: location_key
+        description: "Surrogate key of the location of target (links a dim_location)."
+        tests:
+          - relationships:
+              arguments:
+                to: ref('dim_location')
+                field: location_key
+      - name: date_key
+        description: "Surrogate key of the date of receipt (links a dim_date)."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key
+      - name: purchase_order_status
+        description: "Purchase order status at query time."
+      - name: quantity_received_qty
+        description: "Quantity efetivamente received."
+      - name: unit_cost_brl
+        description: "Negotiated unit cost in Brazilian reais."
+      - name: total_cost_brl
+        description: "Total cost of the received item in BRL (quantity_received_qty * unit_cost_brl)."
+        tests:
+          - not_null
+      - name: received_by_employee_id
+        description: "Employee responsible for the receipt."
+      - name: received_at
+        description: "Date and time the goods were received."
+
+  - name: agg_daily_channel_performance
+    description: >
+      Daily aggregated fact for Retail Analytics sales-channel performance.
+      Grain: one row per date and channel. Supports comparison of e-commerce
+      and physical point-of-sale (POS) performance using order, revenue, discount,
+      cancellation, conversion, average ticket, and daily revenue-share metrics.
+
+    columns:
+      - name: daily_channel_performance_key
+        description: "Surrogate key generated from the date and channel combination."
+        tests:
+          - unique
+          - not_null
+
+      - name: date_key
+        description: "Date key for commercial performance."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key
+
+      - name: channel
+        description: "Channel of sale: ecommerce or ponto of sale physical (POS)."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['ecommerce', 'pos']
+
+      - name: total_order_count
+        description: "Total number of orders placed through the channel."
+        tests:
+          - not_null
+
+      - name: paid_order_count
+        description: "Quantity of orders with status paid."
+        tests:
+          - not_null
+
+      - name: cancelled_order_count
+        description: "Number of canceled orders."
+        tests:
+          - not_null
+
+      - name: confirmed_order_count
+        description: "Number of confirmed orders that have not yet been paid."
+        tests:
+          - not_null
+
+      - name: draft_order_count
+        description: "Quantity of orders in rascunho."
+        tests:
+          - not_null
+
+      - name: paid_customer_count
+        description: "Number of distinct customers with paid orders."
+        tests:
+          - not_null
+
+      - name: item_line_count
+        description: "Number of item rows in paid orders."
+        tests:
+          - not_null
+
+      - name: quantity_sold_qty
+        description: "Total quantity of units sold in paid orders."
+        tests:
+          - not_null
+
+      - name: gross_revenue_amount_brl
+        description: "Sum of subtotals for paid orders."
+        tests:
+          - not_null
+
+      - name: discount_amount_brl
+        description: "Total discount amount for paid orders."
+        tests:
+          - not_null
+
+      - name: net_revenue_amount_brl
+        description: "Total net revenue from paid orders."
+        tests:
+          - not_null
+
+      - name: paid_conversion_rate
+        description: >
+          Proportion of paid orders relative to the channel's total orders.
+
+      - name: cancellation_rate
+        description: >
+          Proportion of canceled orders relative to the channel's total orders.
+
+      - name: average_order_value_brl
+        description: "Average order value for paid orders."
+
+      - name: average_discount_per_order_brl
+        description: "Average discount per paid order."
+
+      - name: revenue_per_customer_brl
+        description: "Average net revenue per customer with a paid order."
+
+      - name: average_items_per_order
+        description: "Average number of units per paid order."
+
+      - name: channel_revenue_share
+        description: >
+          Channel share of the day's total net revenue.
+
+  - name: fct_orders
+    description: >
+      Order fact. Grain: one row per order_id.
+      Authoritative source for financial KPIs and analysis eligibility.
+    columns:
+      - name: order_id
+        description: "Unique order identifier."
+        tests:
+          - unique
+          - not_null
+
+  - name: fct_payments
+    description: >
+      Payment fact. Grain: one row per payment_id.
+      Detailed analysis of payment methods, statuses, and installments.
+    columns:
+      - name: payment_id
+        description: "Unique payment identifier."
+        tests:
+          - unique
+          - not_null
+
+  - name: fct_inventory_replenishment_snapshot
+    description: >
+      Daily snapshot table of inventory, demand, and replenishment suggestions.
+      Preserves history for time-series analysis in Power BI.
+
+      Grain: reference_date + product_variant_id + location_id
+
+      Implemented technical decisions (PR review):
+      - Exact windows: 30, 60, and 90 days (uses > rather than >=)
+      - Calendar: existing dim_date (does not use dbt_date)
+      - Dimension keys: sourced from dim_product, dim_location, and dim_supplier
+      - Incremental: >= to allow reprocessing the same day
+      - Purchase statuses: uses the valid_purchase_statuses variable
+      - Alerts: require effective_reorder_point to be non-null (no coalesce to 0)
+      - Products in inventory without sales: included in the demand calendar
+
+      Business assumptions:
+      - Service level: 95% (z-score 1.65)
+      - Additional coverage: 30 days
+      - Gross demand (returns are not deducted in the MVP)
+      - Products without recent sales: suggested_purchase_qty = 0
+
+      Materialization: incremental (merge)
+
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - reference_date
+            - product_variant_id
+            - location_id
+
+    columns:
+      # Chaves
+      - name: reference_date
+        description: "Snapshot reference date."
+        tests:
+          - not_null
+
+      - name: date_key
+        description: "Key dimensional of dim_date (YYYYMMDD)."
+
+      - name: product_variant_id
+        description: "Product variant."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_product_variants')
+              field: product_variant_id
+
+      - name: product_key
+        description: "Key dimensional of dim_product."
+
+      - name: location_id
+        description: "Location."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_locations')
+              field: location_id
+
+      - name: location_key
+        description: "Key dimensional of dim_location."
+
+      - name: supplier_id
+        description: "Preferred supplier."
+
+      - name: supplier_key
+        description: "Key dimensional of dim_supplier."
+
+      # Demand
+      - name: demand_30d_qty
+        description: "Demand sum over the last 30 days."
+
+      - name: demand_60d_qty
+        description: "Demand sum over the last 60 days."
+
+      - name: demand_90d_qty
+        description: "Demand sum over the last 90 days."
+
+      - name: avg_daily_demand_30d
+        description: "Average daily demand over the last 30 days."
+
+      - name: avg_daily_demand_60d
+        description: "Average daily demand over the last 60 days."
+
+      - name: avg_daily_demand_90d
+        description: "Average daily demand over the last 90 days."
+
+      - name: daily_demand_stddev_90d
+        description: "Standard deviation of daily demand (90 days)."
+
+      - name: days_with_sales_90d
+        description: "Quantity of days with sales > 0."
+
+      - name: has_recent_sales
+        description: "Flag indicating whether the product sold in the last 90 days."
+
+      # Fornecimento
+      - name: lead_time_days
+        description: "Delivery lead time for the preferred supplier."
+
+      - name: last_quoted_cost
+        description: "Last cost cotado by the supplier."
+
+      # Inventory
+      - name: current_stock_qty
+        description: "Inventory current in the reference_date."
+        tests:
+          - not_null
+
+      - name: open_purchase_qty
+        description: "Total quantity in transit (ordered but not received)."
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: overdue_purchase_qty
+        description: "Overdue quantity (expected_delivery < reference_date)."
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: future_purchase_qty
+        description: "Future quantity (expected_delivery >= reference_date)."
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: projected_stock_qty
+        description: "Inventory projected (current + open_purchase)."
+        tests:
+          - not_null
+
+      # Reorder point
+      - name: lead_time_demand
+        description: "Demand during lead time (avg_daily × lead_time)."
+
+      - name: safety_stock
+        description: "Safety stock (1.65 × stddev × √lead_time)."
+
+      - name: source_reorder_point
+        description: "Original reorder point from the source (may be NULL)."
+
+      - name: calculated_reorder_point
+        description: "Reorder point calculated by the formula."
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0 OR calculated_reorder_point IS NULL"
+
+      - name: effective_reorder_point
+      description: "COALESCE(source, calculated) - amount used in the alerts."
+
+      - name: reorder_point_origin
+        description: "Source of the amount: 'source' | 'calculated' | NULL."
+
+      # Indicadores operacionais
+      - name: stock_coverage_days
+        description: "Days of cobertura (current_stock / avg_daily_demand_90d)."
+
+      - name: is_reorder_needed
+        description: "Alerta: current_stock <= effective_reorder_point."
+
+      - name: is_reorder_needed_after_inbound
+        description: "Alerta: projected_stock <= effective_reorder_point."
+
+      - name: is_stockout_risk
+        description: "Risco of ruptura: coverage_days < lead_time_days."
+
+      - name: is_new_product
+        description: "Product with no demand in the last 90 days: demand_90d_qty = 0 (may be new or established with no recent sales)."
+
+      - name: is_stale_product
+        description: "Product parado: has_recent_sales = false."
+
+      # Purchase suggestion
+      - name: suggested_purchase_qty
+        description: "Suggested purchase quantity (0 if the product has no sales)."
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+              config:
+                severity: error
+
+      - name: estimated_purchase_cost
+        description: "Cost estimated (suggested_qty × last_quoted_cost)."
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      # Metadados
+      - name: created_at
+        description: "Record load timestamp."
+
+      - name: model_version
+        description: "Model version (v1.0)."

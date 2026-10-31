@@ -1,0 +1,1237 @@
+version: 2
+
+sources:
+  - name: bronze
+    database: retail_analytics
+    schema: bronze
+    tables:
+      - name: orders
+    description: "Customer orders placed through physical or e-commerce channels."
+        columns:
+          - name: id
+            description: "Unique order identifier."
+          - name: order_number
+            description: "Order number (customer-readable identifier)."
+          - name: channel
+            description: "Order sales channel."
+          - name: customer_id
+            description: "Customer who placed the order."
+          - name: salesperson_id
+            description: "Salesperson responsible for the order."
+          - name: location_id
+            description: "Store or location where the order was placed."
+          - name: status
+            description: "Current order status (e.g., delivered or canceled)."
+          - name: subtotal
+            description: "Amount before the discount."
+          - name: discount_amount
+            description: "Discount amount applied."
+          - name: total
+            description: "Total order amount."
+          - name: placed_at
+            description: "Date and time the order was placed."
+
+      - name: order_items
+        description: "Items that make up each order."
+        columns:
+          - name: id
+            description: "Unique order-item identifier."
+          - name: order_id
+            description: "Order to which this item belongs."
+          - name: product_variant_id
+            description: "Sold product variant."
+          - name: quantity
+            description: "Quantity sold."
+          - name: unit_price
+            description: "Unit price at the time of sale."
+          - name: icms_rate
+            description: "ICMS tax rate."
+          - name: ipi_rate
+            description: "IPI tax rate."
+          - name: line_total
+            description: "Total line amount, calculated in the source."
+
+      - name: payments
+        description: "Payments associated with orders."
+        columns:
+          - name: id
+            description: "Unique payment identifier."
+          - name: order_id
+            description: "Order associated with this payment."
+          - name: method
+            description: "Payment method (e.g., credit card, Pix, or bank slip)."
+          - name: installments
+            description: "Number of installments."
+          - name: amount
+            description: "Amount paid."
+          - name: status
+            description: "Payment status (e.g., paid or refunded)."
+          - name: paid_at
+            description: "Date and time the payment was made."
+
+      - name: fiscal_invoices
+        description: "Tax invoices issued for orders."
+        columns:
+          - name: id
+            description: "Unique tax invoice identifier."
+          - name: order_id
+            description: "Order related to the invoice tax."
+          - name: nfe_number
+            description: "Brazilian electronic invoice number (NF-e)."
+          - name: nfe_access_key
+            description: "Access key for the Brazilian electronic invoice (NF-e)."
+          - name: series
+            description: "Tax invoice series."
+          - name: issued_at
+            description: "Issue date."
+          - name: status
+            description: "Tax invoice status."
+          - name: total_amount
+            description: "Total tax invoice amount."
+          - name: xml_storage_uri
+            description: "Storage location for the invoice XML."
+
+      - name: returns
+        description: "Returns initiated by customers."
+        columns:
+          - name: id
+            description: "Unique return identifier."
+          - name: return_number
+            description: "Return number (readable identifier)."
+          - name: order_id
+            description: "Source order associated with the return."
+          - name: customer_id
+            description: "Customer who requested the return."
+          - name: received_at_location_id
+            description: "Store or location where the return was received."
+          - name: status
+            description: "Return status."
+          - name: reason
+            description: "Reason provided for the return."
+          - name: total_refund_amount
+            description: "Amount total refunded."
+          - name: created_at
+            description: "Date and time the return record was created."
+
+      - name: return_items
+        description: "Specific items returned within a return."
+        columns:
+          - name: id
+            description: "Unique identifier for the returned item."
+          - name: return_id
+            description: "Return to which this item belongs."
+          - name: order_item_id
+            description: "Item of order of source (links a product_variant_id via stg_order_items)."
+          - name: quantity
+            description: "Quantity returned."
+          - name: action
+            description: "Action taken (e.g., refund or exchange)."
+          - name: exchange_variant_id
+            description: "Product variant received in exchange, if applicable."
+          - name: unit_refund_amount
+            description: "Refund amount per unit."
+
+      - name: products
+        description: "Master catalog of products sold by Retail Analytics."
+        columns:
+          - name: id
+            description: "Unique product identifier."
+          - name: name
+            description: "Product trade name."
+          - name: description
+            description: "Detailed product description."
+          - name: brand_id
+            description: "Foreign key to the product's brand."
+          - name: category_id
+            description: "Foreign key to the product's category."
+          - name: ncm_code
+            description: "NCM tax classification code."
+          - name: unit_of_measure
+            description: "Unit of measure (UN, KG, L, etc.)."
+          - name: is_active
+            description: "Flag indicating whether the product is active in the catalog."
+          - name: created_at
+            description: "Record creation timestamp."
+          - name: updated_at
+            description: "Last update timestamp."
+
+      - name: product_variants
+        description: "Sellable product variants (SKUs), with price, cost, and tax attributes."
+        columns:
+          - name: id
+            description: "Unique variant identifier (SKU). Grain of dim_product."
+          - name: product_id
+            description: "Foreign key to the parent product for this variant."
+          - name: sku
+            description: "Unique SKU code."
+          - name: barcode_ean
+            description: "EAN barcode."
+          - name: sale_price
+            description: "Price of sale in BRL."
+          - name: cost_price
+            description: "Acquisition cost in BRL."
+          - name: weight_kg
+            description: "Variant weight in kilograms."
+          - name: icms_rate
+            description: "Applicable ICMS tax rate."
+          - name: ipi_rate
+            description: "Applicable IPI tax rate."
+          - name: is_active
+            description: "Flag indicating whether the variant is active."
+          - name: created_at
+            description: "Record creation timestamp."
+          - name: updated_at
+            description: "Last update timestamp."
+
+      - name: categories
+        description: "Product category hierarchy. Self-referencing through parent_category_id."
+        columns:
+          - name: id
+            description: "Unique category identifier."
+          - name: name
+            description: "Category name."
+          - name: slug
+            description: "URL-friendly slug."
+          - name: parent_category_id
+            description: "Self-referencing foreign key. NULL indicates a root category."
+          - name: is_active
+            description: "Flag indicating whether the category is active."
+          - name: created_at
+            description: "Record creation timestamp."
+          - name: updated_at
+            description: "Last update timestamp."
+
+      - name: brands
+        description: "Brands of the products sold."
+        columns:
+          - name: id
+            description: "Unique brand identifier."
+          - name: name
+            description: "Brand name."
+          - name: country
+            description: "Brand's country of origin."
+          - name: is_active
+            description: "Flag indicating whether the brand is active."
+          - name: created_at
+            description: "Record creation timestamp."
+          - name: updated_at
+            description: "Last update timestamp."
+
+      - name: attributes
+        description: "Catalog of attributes that apply to product variants (e.g., color, size, voltage)."
+        columns:
+          - name: id
+            description: "Unique attribute identifier."
+          - name: name
+            description: "Attribute name (e.g., 'color')."
+          - name: data_type
+            description: "Expected data type for the value (string, number, etc.)."
+
+      - name: variant_attribute_values
+        description: "Many-to-many table linking product variants to their assigned attribute values."
+        columns:
+          - name: product_variant_id
+            description: "FK for product_variants."
+          - name: attribute_id
+            description: "FK for attributes."
+          - name: value
+            description: "Attribute value for this variant (e.g., 'blue' or '110V')."
+
+      - name: stock_levels
+    description: "Current inventory balance by product variant and location."
+        columns:
+          - name: product_variant_id
+            description: "Product variant associated with the inventory balance."
+          - name: location_id
+            description: "Store or location associated with the inventory balance."
+          - name: quantity_on_hand
+            description: "Current inventory quantity."
+          - name: reorder_point
+            description: "Minimum inventory level that triggers replenishment."
+          - name: updated_at
+            description: "Date and time of the last inventory balance update."
+
+      - name: stock_movements
+        description: "Inventory movements (inbound, outbound, and adjustments) by variant and location."
+        columns:
+          - name: id
+            description: "Unique movement identifier."
+          - name: product_variant_id
+            description: "Product variant involved in the movement."
+          - name: location_id
+            description: "Store or location where the movement occurred."
+          - name: movement_type
+            description: "Movement type (e.g., inbound, outbound, or adjustment)."
+          - name: quantity
+            description: "Movement quantity."
+          - name: reference_table
+            description: "Source table that generated the movement (e.g., goods_receipt_items or order_items)."
+          - name: reference_id
+            description: "Identifier of the source record in reference_table."
+          - name: employee_id
+            description: "Employee responsible for the movement."
+          - name: notes
+            description: "Additional notes about the movement."
+          - name: occurred_at
+            description: "Date and time the movement actually occurred."
+          - name: created_at
+            description: "Record creation date and time."
+
+      - name: suppliers
+        description: "Suppliers registered for product purchases."
+        columns:
+          - name: id
+            description: "Unique supplier identifier."
+          - name: legal_name
+            description: "Legal name of the supplier."
+          - name: trade_name
+            description: "Trade name of the supplier."
+          - name: country
+            description: "Country of the supplier."
+          - name: tax_id
+            description: "Supplier tax identification document (e.g., CNPJ)."
+          - name: tax_id_type
+            description: "Type of tax document stored in tax_id."
+          - name: email
+            description: "Supplier contact email."
+          - name: phone
+            description: "Supplier contact phone number."
+          - name: contact_name
+            description: "Supplier contact person's name."
+          - name: is_active
+            description: "Indicates whether the supplier is active."
+          - name: created_at
+            description: "Record creation date and time."
+          - name: updated_at
+            description: "Date and time the record was last updated."
+
+      - name: product_suppliers
+        description: "Relationship between product variants and their suppliers."
+        columns:
+          - name: product_variant_id
+            description: "Supplied product variant."
+          - name: supplier_id
+            description: "Supplier associated with the variant."
+          - name: supplier_sku
+            description: "Product code or SKU in the supplier's catalog."
+          - name: last_quoted_cost
+            description: "Last cost quoted for a variant by this supplier."
+          - name: lead_time_days
+            description: "Delivery lead time in days quoted by the supplier."
+          - name: is_preferred
+            description: "Indicates whether this is the preferred supplier for a variant."
+          - name: created_at
+            description: "Date and time the relationship was created."
+          - name: updated_at
+            description: "Date and time the relationship was last updated."
+
+      - name: purchase_orders
+        description: "Purchase orders placed with suppliers."
+        columns:
+          - name: id
+            description: "Unique purchase order identifier."
+          - name: po_number
+            description: "Purchase order number (readable identifier)."
+          - name: supplier_id
+            description: "Supplier from whom the purchase order was placed."
+          - name: buyer_id
+            description: "Employee or buyer responsible for the order."
+          - name: destination_location_id
+            description: "Destination store or location for the goods."
+          - name: status
+            description: "Current purchase order status."
+          - name: currency
+            description: "Currency used for the purchase order."
+          - name: subtotal
+            description: "Amount before taxes or adjustments."
+          - name: total
+            description: "Total purchase order amount."
+          - name: placed_at
+            description: "Date and time the purchase order was placed."
+          - name: expected_delivery_at
+            description: "Expected delivery date."
+          - name: created_at
+            description: "Record creation date and time."
+          - name: updated_at
+            description: "Date and time the record was last updated."
+
+      - name: purchase_order_items
+        description: "Items that make up each purchase order."
+        columns:
+          - name: id
+            description: "Unique purchase order item identifier."
+          - name: purchase_order_id
+            description: "Purchase order to which this item belongs."
+          - name: product_variant_id
+            description: "Purchased product variant."
+          - name: quantity_ordered
+            description: "Quantity requested from the supplier."
+          - name: unit_cost
+            description: "Negotiated unit cost."
+          - name: line_total
+            description: "Total line amount, calculated in the source."
+
+      - name: goods_receipts
+        description: "Goods receipts associated with purchase orders."
+        columns:
+          - name: id
+            description: "Unique receipt identifier."
+          - name: purchase_order_id
+            description: "Purchase order associated with this receipt."
+          - name: received_by_employee_id
+            description: "Employee responsible for the receipt."
+          - name: received_at
+            description: "Date and time the goods were received."
+          - name: notes
+            description: "Additional notes about the receipt."
+          - name: created_at
+            description: "Record creation date and time."
+
+      - name: goods_receipt_items
+        description: "Specific items received in a goods receipt."
+        columns:
+          - name: id
+            description: "Unique received-item identifier."
+          - name: goods_receipt_id
+            description: "Receipt to which this item belongs."
+          - name: purchase_order_item_id
+            description: "Item of order of purchase of source."
+          - name: quantity_received
+            description: "Quantity efetivamente received."
+
+      - name: customers
+        description: "Customers registered in the system."
+        columns:
+          - name: id
+            description: "Unique customer identifier."
+          - name: person_type
+            description: "Customer type (individual or company; PF or PJ)."
+          - name: legal_name
+            description: "Customer's legal name."
+          - name: trade_name
+            description: "Customer trade name."
+          - name: tax_id
+            description: "CPF or CNPJ."
+          - name: state_registration
+            description: "State tax registration number."
+          - name: email
+            description: "Customer email address."
+          - name: phone
+            description: "Customer phone number."
+          - name: is_active
+            description: "Indicates whether the customer is active."
+          - name: created_at
+            description: "Date of creation."
+          - name: updated_at
+            description: "Last update date."
+      
+      - name: addresses
+        description: "Customer addresses."
+        columns:
+          - name: id
+            description: "Unique address identifier."
+          - name: customer_id
+            description: "Customer to whom the address belongs."
+          - name: address_type
+            description: "Address type."
+          - name: postal_code
+            description: "CEP."
+          - name: street
+            description: "Street name."
+          - name: number
+            description: "Number."
+          - name: complement
+            description: "Address line 2 or additional details."
+          - name: district
+            description: "Neighborhood."
+          - name: city
+            description: "City."
+          - name: state
+            description: "State."
+          - name: country
+            description: "Country."
+          - name: is_primary
+            description: "Indicates whether this is the primary address."
+      
+      - name: employees
+        description: "Employees registered in the system."
+        columns:
+          - name: id
+            description: "Unique employee identifier."
+          - name: full_name
+            description: "Employee's full name."
+          - name: cpf
+            description: "Employee CPF (Brazilian individual taxpayer ID)."
+          - name: email
+            description: "Corporate email address."
+          - name: role
+            description: "Employee job title."
+          - name: primary_location_id
+            description: "Employee's primary location."
+          - name: hire_date
+            description: "Hire date."
+          - name: termination_date
+            description: "Date of desligamento."
+          - name: is_active
+            description: "Indicates whether the employee is active."
+          - name: created_at
+            description: "Record creation date."
+          - name: updated_at
+            description: "Date of the last record update."
+      
+      - name: locations
+        description: "Physical company locations, such as stores and warehouses."
+        columns:
+          - name: id
+            description: "Unique location identifier."
+          - name: name
+            description: "Location name."
+          - name: location_type
+            description: "Location type."
+          - name: postal_code
+            description: "CEP."
+          - name: street
+            description: "Street name."
+          - name: number
+            description: "Number."
+          - name: complement
+            description: "Address line 2 or additional details."
+          - name: district
+            description: "Neighborhood."
+          - name: city
+            description: "City."
+          - name: state
+            description: "State."
+          - name: country
+            description: "Country."
+          - name: is_active
+            description: "Indicates whether the location is active."
+          - name: created_at
+            description: "Record creation date."
+          - name: updated_at
+            description: "Date of the last record update."
+
+models:
+  - name: stg_orders
+    description: "Orders, cleaned and deduplicated, with a one-to-one relationship to Bronze orders."
+    columns:
+      - name: order_id
+        description: "Unique order identifier."
+        tests:
+          - unique
+          - not_null
+      - name: order_number
+        description: "Order number (customer-readable identifier)."
+      - name: channel
+        description: "Order sales channel (e.g., physical store or e-commerce)."
+      - name: customer_id
+        description: "Customer who placed the order."
+      - name: salesperson_id
+        description: "Salesperson responsible for the order."
+      - name: location_id
+        description: "Store or location where the order was placed."
+      - name: order_status
+        description: "Order status."
+      - name: subtotal
+        description: "Amount before the discount."
+      - name: discount_amount
+        description: "Discount amount applied to the order."
+      - name: total_amount
+        description: "Total order amount."
+      - name: placed_at
+        description: "Date and time the order was placed."
+
+  - name: stg_order_items
+    description: "Order items, cleaned and deduplicated."
+    columns:
+      - name: order_item_id
+        description: "Unique order-item identifier."
+        tests:
+          - unique
+          - not_null
+      - name: order_id
+        description: "Order to which this item belongs."
+        tests:
+          - relationships:
+              arguments:
+                to: ref('stg_orders')
+                field: order_id
+      - name: product_variant_id
+        description: "Sold product variant."
+      - name: quantity_qty
+        description: "Quantity sold."
+      - name: unit_price
+        description: "Unit price."
+      - name: icms_rate
+        description: "ICMS tax rate applied to the item."
+      - name: ipi_rate
+        description: "IPI tax rate applied to the item."
+      - name: line_total
+        description: "Total line amount (calculated in the source)."
+
+  - name: stg_payments
+    description: "Payments, cleaned and deduplicated."
+    columns:
+      - name: payment_id
+        description: "Unique payment identifier."
+        tests:
+          - unique
+          - not_null
+      - name: order_id
+        description: "Order related to the payment."
+        tests:
+          - relationships:
+              arguments:
+                to: ref('stg_orders')
+                field: order_id
+      - name: payment_method
+        description: "Payment method (e.g., credit card, Pix, or bank slip)."
+      - name: installments
+        description: "Number of installments."
+      - name: amount
+        description: "Amount paid."
+      - name: payment_status
+        description: "Status of the payment."
+      - name: paid_at
+        description: "Date and time the payment was made."
+
+  - name: stg_returns
+    description: "Returns, cleaned and deduplicated."
+    columns:
+      - name: return_id
+        description: "Unique return identifier."
+        tests:
+          - unique
+          - not_null
+      - name: return_number
+        description: "Return number (readable identifier)."
+      - name: order_id
+        description: "Source order associated with the return."
+        tests:
+          - relationships:
+              arguments:
+                to: ref('stg_orders')
+                field: order_id
+      - name: customer_id
+        description: "Customer who requested the return."
+      - name: received_at_location_id
+        description: "Store or location where the return was received."
+      - name: return_status
+        description: "Return status."
+      - name: return_reason
+        description: "Reason provided for the return."
+      - name: total_refund_amount
+        description: "Amount total refunded."
+      - name: returned_at
+        description: "Date and time the return record was created."
+
+  - name: stg_return_items
+    description: "Return items, cleaned and deduplicated."
+    columns:
+      - name: return_item_id
+        description: "Unique identifier for the returned item."
+        tests:
+          - unique
+          - not_null
+      - name: return_id
+        description: "Return to which this item belongs."
+        tests:
+          - relationships:
+              arguments:
+                to: ref('stg_returns')
+                field: return_id
+      - name: order_item_id
+        description: "Item of order of source."
+        tests:
+          - relationships:
+              arguments:
+                to: ref('stg_order_items')
+                field: order_item_id
+      - name: quantity_returned_qty
+        description: "Quantity returned."
+      - name: return_action
+        description: "Action taken (e.g., refund or exchange)."
+      - name: exchange_variant_id
+        description: "Product variant received in exchange, if applicable."
+      - name: unit_refund_amount
+        description: "Refund amount per unit."
+      - name: return_amount
+        description: "Total refunded amount (quantity_returned_qty * unit_refund_amount)."
+
+  - name: stg_fiscal_invoices
+    description: "Tax invoices, cleaned and deduplicated."
+    columns:
+      - name: fiscal_invoice_id
+        description: "Unique tax invoice identifier."
+        tests:
+          - unique
+          - not_null
+      - name: order_id
+        description: "Order related to the invoice tax."
+        tests:
+          - relationships:
+              arguments:
+                to: ref('stg_orders')
+                field: order_id
+      - name: invoice_number
+        description: "Brazilian electronic invoice number (NF-e)."
+      - name: nfe_access_key
+        description: "Access key for the Brazilian electronic invoice (NF-e)."
+      - name: series
+        description: "Tax invoice series."
+      - name: issued_at
+        description: "Issue date."
+      - name: invoice_status
+        description: "Tax invoice status."
+      - name: total_amount
+        description: "Total tax invoice amount."
+      - name: xml_storage_uri
+        description: "Storage location for the invoice XML."
+  
+
+  - name: stg_products
+    description: |
+      Product staging: applies type casts and standardizes column names.
+      Grain: one record per product.
+    columns:
+      - name: product_id
+        description: Product primary key.
+        tests:
+          - unique
+          - not_null
+      - name: product_name
+        description: Product trade name.
+        tests:
+          - not_null
+      - name: description
+        description: Long product description.
+      - name: brand_id
+        description: FK for stg_brands.
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_brands')
+              field: brand_id
+      - name: category_id
+        description: FK for stg_categories.
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_categories')
+              field: category_id
+      - name: ncm_code
+        description: NCM code (Common Nomenclature of Mercosur) for tax classification.
+      - name: unit_of_measure
+        description: Product unit of measure (e.g., unit, kg, m).
+      - name: is_active
+        description: Flag indicating whether the product is active in the catalog.
+        tests:
+          - not_null
+      - name: created_at
+        description: Timestamp when the source record was created.
+      - name: updated_at
+        description: Timestamp of the last source update.
+
+  - name: stg_product_variants
+    description: |
+      Staging model for product variants (SKU): each product may have multiple variants.
+      Grain: one row per variant (SKU).
+    columns:
+      - name: product_variant_id
+        description: Primary key for the variant (SKU).
+        tests:
+          - unique
+          - not_null
+      - name: product_id
+        description: FK for stg_products.
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_products')
+              field: product_id
+      - name: sku
+        description: Unique SKU code for the variant.
+        tests:
+          - not_null
+      - name: barcode_ean
+        description: EAN barcode for the variant.
+      - name: sale_price
+        description: Price of sale in BRL.
+      - name: cost_price
+        description: Price of cost in BRL.
+      - name: weight_kg
+        description: Variant weight in kilograms.
+      - name: icms_rate
+        description: Applicable ICMS tax rate.
+      - name: ipi_rate
+        description: Applicable IPI tax rate.
+      - name: is_active
+        description: Flag indicating whether the variant is active.
+        tests:
+          - not_null
+
+  - name: stg_categories
+    description: |
+      Staging model for product categories with a self-referencing hierarchy through parent_category_id.
+      Grain: one row per category.
+    columns:
+      - name: category_id
+        description: Category primary key.
+        tests:
+          - unique
+          - not_null
+      - name: category_name
+        description: Category name.
+        tests:
+          - not_null
+      - name: slug
+        description: URL-friendly slug.
+      - name: parent_category_id
+        description: Self-referencing foreign key to the parent category (NULL for a root category).
+      - name: is_active
+        description: Flag indicating whether the category is active.
+        tests:
+          - not_null
+
+  - name: stg_brands
+    description: |
+      Staging model for product brands.
+      Grain: one row per brand.
+    columns:
+      - name: brand_id
+        description: Brand primary key.
+        tests:
+          - unique
+          - not_null
+      - name: brand_name
+        description: Brand name.
+        tests:
+          - not_null
+      - name: country
+        description: Brand's country of origin.
+      - name: is_active
+        description: Flag indicating whether the brand is active.
+        tests:
+          - not_null
+
+  - name: stg_attributes
+    description: |
+      Staging model for the dictionary of attributes available to describe variants
+      (e.g., color, size, voltage).
+      Grain: one row per attribute.
+    columns:
+      - name: attribute_id
+        description: Attribute primary key.
+        tests:
+          - unique
+          - not_null
+      - name: attribute_name
+        description: Attribute name (e.g., color, size).
+        tests:
+          - not_null
+      - name: data_type
+        description: Expected data type for the attribute value (string, number, boolean).
+        tests:
+          - not_null
+
+  - name: stg_variant_attribute_values
+    description: |
+      Ponte that associa variants of product to the seus amounts of attribute.
+      Grain: one row per (variant, attribute) — composite key.
+    columns:
+      - name: product_variant_id
+        description: FK for stg_product_variants.
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_product_variants')
+              field: product_variant_id
+      - name: attribute_id
+        description: FK for stg_attributes.
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_attributes')
+              field: attribute_id
+      - name: attribute_value
+        description: Attribute value for this variant (stored as a string).
+
+  - name: stg_stock_levels
+    description: "Current inventory balance, cleaned and deduplicated, with a one-to-one relationship to Bronze stock_levels."
+    columns:
+      - name: product_variant_id
+        description: "Product variant associated with the inventory balance (part of the composite primary key)."
+        tests:
+          - not_null
+      - name: location_id
+        description: "Store or location associated with the inventory balance (part of the composite primary key)."
+        tests:
+          - not_null
+      - name: quantity_on_hand
+        description: "Current inventory quantity."
+      - name: reorder_point
+        description: "Minimum inventory level that triggers replenishment."
+      - name: updated_at
+        description: "Date and time of the last inventory balance update."
+
+  - name: stg_stock_movements
+    description: "Inventory movements, cleaned and deduplicated."
+    columns:
+      - name: stock_movement_id
+        description: "Unique movement identifier."
+        tests:
+          - unique
+          - not_null
+      - name: product_variant_id
+        description: "Product variant involved in the movement."
+      - name: location_id
+        description: "Store or location where the movement occurred."
+      - name: movement_type
+        description: "Movement type (e.g., inbound, outbound, or adjustment)."
+      - name: quantity
+        description: "Movement quantity (may be negative for outbound movements)."
+      - name: reference_table
+        description: "Source table that generated the movement (e.g., goods_receipt_items or order_items)."
+      - name: reference_id
+        description: "Identifier of the source record in reference_table."
+      - name: employee_id
+        description: "Employee responsible for the movement."
+      - name: notes
+        description: "Additional notes about the movement."
+      - name: occurred_at
+        description: "Date and time the movement actually occurred."
+      - name: created_at
+        description: "Record creation date and time."
+
+  - name: stg_suppliers
+    description: "Suppliers, cleaned and deduplicated."
+    columns:
+      - name: supplier_id
+        description: "Unique supplier identifier."
+        tests:
+          - unique
+          - not_null
+      - name: legal_name
+        description: "Legal name of the supplier."
+      - name: trade_name
+        description: "Supplier trade name."
+      - name: country
+        description: "Country of the supplier."
+      - name: tax_id
+        description: "Supplier tax identification document (e.g., CNPJ)."
+      - name: tax_id_type
+        description: "Type of tax document stored in tax_id."
+      - name: email
+        description: "Supplier contact email."
+      - name: phone
+        description: "Supplier contact phone number."
+      - name: contact_name
+        description: "Supplier contact person's name."
+      - name: is_active
+        description: "Indicates whether the supplier is active."
+      - name: created_at
+        description: "Record creation date and time."
+      - name: updated_at
+        description: "Date and time the record was last updated."
+
+  - name: stg_purchase_orders
+    description: "Purchase orders, cleaned and deduplicated."
+    columns:
+      - name: purchase_order_id
+        description: "Unique purchase order identifier."
+        tests:
+          - unique
+          - not_null
+      - name: po_number
+        description: "Purchase order number (readable identifier)."
+      - name: supplier_id
+        description: "Supplier from whom the purchase order was placed."
+        tests:
+          - relationships:
+              arguments:
+                to: ref('stg_suppliers')
+                field: supplier_id
+      - name: buyer_id
+        description: "Employee or buyer responsible for the order."
+      - name: destination_location_id
+        description: "Destination store or location for the goods."
+      - name: status
+        description: "Current purchase order status."
+      - name: currency
+        description: "Currency used for the purchase order."
+      - name: subtotal
+        description: "Amount before taxes or adjustments."
+      - name: total_amount
+        description: "Total purchase order amount."
+      - name: placed_at
+        description: "Date and time the purchase order was placed."
+      - name: expected_delivery_at
+        description: "Expected delivery date."
+      - name: created_at
+        description: "Record creation date and time."
+      - name: updated_at
+        description: "Date and time the record was last updated."
+
+  - name: stg_product_suppliers
+    description: "Cleaned and deduplicated relationship between product variants and suppliers."
+    columns:
+      - name: product_variant_id
+        description: "Supplied product variant (part of the composite primary key)."
+        tests:
+          - not_null
+      - name: supplier_id
+        description: "Supplier associated with the variant (part of the composite primary key)."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_suppliers')
+                field: supplier_id
+      - name: supplier_sku
+        description: "Product code or SKU in the supplier's catalog."
+      - name: last_quoted_cost
+        description: "Last cost quoted by this supplier for the variant."
+      - name: lead_time_days
+        description: "Delivery lead time in days quoted by the supplier."
+      - name: is_preferred
+        description: "Indicates whether this is the preferred supplier for a variant."
+      - name: created_at
+        description: "Date and time the relationship was created."
+      - name: updated_at
+        description: "Date and time the relationship was last updated."
+
+  - name: stg_purchase_order_items
+    description: "Purchase order items, cleaned and deduplicated."
+    columns:
+      - name: purchase_order_item_id
+        description: "Unique purchase order item identifier."
+        tests:
+          - unique
+          - not_null
+      - name: purchase_order_id
+        description: "Purchase order to which this item belongs."
+        tests:
+          - relationships:
+              arguments:
+                to: ref('stg_purchase_orders')
+                field: purchase_order_id
+      - name: product_variant_id
+        description: "Purchased product variant."
+      - name: quantity_ordered
+        description: "Quantity requested from the supplier."
+      - name: unit_cost
+        description: "Negotiated unit cost."
+      - name: line_total
+        description: "Total line amount, calculated in the source."
+
+  - name: stg_goods_receipts
+    description: "Goods receipts, cleaned and deduplicated."
+    columns:
+      - name: goods_receipt_id
+        description: "Unique receipt identifier."
+        tests:
+          - unique
+          - not_null
+      - name: purchase_order_id
+        description: "Purchase order associated with this receipt."
+        tests:
+          - relationships:
+              arguments:
+                to: ref('stg_purchase_orders')
+                field: purchase_order_id
+      - name: received_by_employee_id
+        description: "Employee responsible for the receipt."
+      - name: received_at
+        description: "Date and time the goods were received."
+      - name: notes
+        description: "Additional notes about the receipt."
+      - name: created_at
+        description: "Record creation date and time."
+
+  - name: stg_goods_receipt_items
+    description: "Specific items received in a goods receipt, cleaned and deduplicated."
+    columns:
+      - name: goods_receipt_item_id
+        description: "Unique received-item identifier."
+        tests:
+          - unique
+          - not_null
+      - name: goods_receipt_id
+        description: "Receipt to which this item belongs."
+        tests:
+          - relationships:
+              arguments:
+                to: ref('stg_goods_receipts')
+                field: goods_receipt_id
+      - name: purchase_order_item_id
+        description: "Item of order of purchase of source."
+        tests:
+          - relationships:
+              arguments:
+                to: ref('stg_purchase_order_items')
+                field: purchase_order_item_id
+      - name: quantity_received
+        description: "Quantity efetivamente received."
+
+  - name: stg_customers
+    description: "Customers, cleaned and deduplicated."
+    columns:
+      - name: customer_id
+        description: "Unique customer identifier."
+        tests:
+          - unique
+          - not_null
+      - name: person_type
+        description: "Customer type (individual or company)."
+      - name: customer_name
+        description: "Customer's legal name."
+      - name: trade_name
+        description: "Trade name of the customer."
+      - name: tax_id
+        description: "Customer tax identification document."
+      - name: state_registration
+        description: "Customer state tax registration number."
+      - name: email
+        description: "Customer email address."
+      - name: phone
+        description: "Customer phone number."
+      - name: is_active_flag
+        description: "Indicates whether the customer is active."
+      - name: created_at
+        description: "Record creation date."
+      - name: updated_at
+        description: "Date of the last record update."
+
+  - name: stg_addresses
+    description: "Customer addresses, cleaned and deduplicated."
+    columns:
+      - name: address_id
+        description: "Unique address identifier."
+        tests:
+          - unique
+          - not_null
+
+      - name: customer_id
+        description: "Customer to whom the address belongs."
+        tests:
+          - relationships:
+              arguments:
+                to: ref('stg_customers')
+                field: customer_id
+
+      - name: address_type
+        description: "Address type."
+
+      - name: postal_code
+        description: "CEP."
+
+      - name: street
+        description: "Street name."
+
+      - name: number
+        description: "Number."
+
+      - name: complement
+        description: "Address line 2 or additional details."
+
+      - name: district
+        description: "Neighborhood."
+
+      - name: city
+        description: "City."
+
+      - name: state
+        description: "State."
+
+      - name: country
+        description: "Country."
+
+      - name: is_primary_flag
+        description: "Indicates whether this is the primary address."
+
+  - name: stg_employees
+    description: "Employees, cleaned and deduplicated."
+    columns:
+      - name: employee_id
+        description: "Unique employee identifier."
+        tests:
+          - unique
+          - not_null
+
+      - name: employee_name
+        description: "Employee's full name."
+
+      - name: cpf
+        description: "Employee CPF (Brazilian individual taxpayer ID)."
+
+      - name: email
+        description: "Corporate email address."
+
+      - name: role
+        description: "Employee job title."
+
+      - name: location_id
+        description: "Employee's primary location."
+
+      - name: hire_date
+        description: "Hire date."
+
+      - name: termination_date
+        description: "Date of desligamento."
+
+      - name: is_active_flag
+        description: "Indicates whether the employee is active."
+
+      - name: created_at
+        description: "Record creation date."
+
+      - name: updated_at
+        description: "Date of the last record update."
+
+  - name: stg_locations
+    description: "Locations, cleaned and deduplicated."
+    columns:
+      - name: location_id
+        description: "Unique location identifier."
+        tests:
+          - unique
+          - not_null
+
+      - name: location_name
+        description: "Location name."
+
+      - name: location_type
+        description: "Location type."
+
+      - name: postal_code
+        description: "CEP."
+
+      - name: street
+        description: "Street name."
+
+      - name: number
+        description: "Number."
+
+      - name: complement
+        description: "Address line 2 or additional details."
+
+      - name: district
+        description: "Neighborhood."
+
+      - name: city
+        description: "City."
+
+      - name: state
+        description: "State."
+
+      - name: country
+        description: "Country."
+
+      - name: is_active_flag
+        description: "Indicates whether the location is active."
+
+      - name: created_at
+        description: "Record creation date."
+
+      - name: updated_at
+        description: "Date of the last record update."

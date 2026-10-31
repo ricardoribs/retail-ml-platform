@@ -1,0 +1,2 @@
+# Dependência usada pelos scripts de provisionamento e sincronização do índice.
+databricks-ai-search==0.78

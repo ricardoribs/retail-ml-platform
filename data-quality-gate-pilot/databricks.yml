@@ -1,0 +1,31 @@
+bundle:
+  name: data-quality-gate-dbt-pilot
+
+variables:
+  catalog:
+    description: Unity Catalog catalog used by the quality-gate pilot.
+    default: retail_analytics
+
+include:
+  - resources/*.yml
+
+# This bundle is deliberately independent from the repository-level bundle.
+# It synchronizes only the pilot resources and the dbt project required to run
+# the controlled test. In particular, it never declares the historical
+# ingestion, forecast, or Marina jobs.
+sync:
+  paths:
+    - .
+    - ../dbt
+  exclude:
+    - ../dbt/profiles.yml
+    - ../dbt/target/**
+    - ../dbt/logs/**
+    - ../dbt/dbt_packages/**
+
+targets:
+  dev:
+    default: true
+    mode: development
+    workspace:
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
